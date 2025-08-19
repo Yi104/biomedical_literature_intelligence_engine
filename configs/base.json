@@ -1,6 +1,6 @@
 {
   "model_name": "dmis-lab/biobert-base-cased-v1.1",
-  "dataset": "jnlpba",
+  "dataset": "bc5cdr",
   "max_length": 256,
   "learning_rate": 3e-5,
   "weight_decay": 0.01,
@@ -9,9 +9,9 @@
   "per_device_eval_batch_size": 32,
   "warmup_ratio": 0.1,
   "logging_steps": 50,
-  "eval_strategy": "steps",
+  "eval_strategy": "epoch",
   "eval_steps": 200,
-  "save_strategy": "steps",
+  "save_strategy": "epoch",
   "save_steps": 200,
   "seed": 42
 }
