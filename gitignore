@@ -1,0 +1,84 @@
+# ============================================
+# Python
+# ============================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+*.manifest
+*.spec
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+ENV/
+.ipynb_checkpoints/
+
+# ============================================
+# Logs & outputs
+# ============================================
+*.log
+logs/
+wandb/
+lightning_logs/
+outputs/checkpoints/
+outputs/reports/
+runs/
+events.out.tfevents.*
+
+# ============================================
+# Jupyter
+# ============================================
+.ipynb_checkpoints
+*.ipynb~
+
+# ============================================
+# Data (large files)
+# ============================================
+data/
+*.csv
+*.tsv
+*.jsonl
+*.gz
+*.zip
+*.tar
+*.tar.gz
+
+# Ignore Hugging Face datasets cache
+.cache/
+datasets/
+cache/
+cached_models/
+
+# ============================================
+# Model weights
+# ============================================
+*.bin
+*.h5
+*.ckpt
+*.pth
+*.pt
+
+# Hugging Face / PyTorch save dirs
+*.safetensors
+pytorch_model.bin
+tf_model.h5
+
+# ============================================
+# OS / editor files
+# ============================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.bak
+*~
+.idea/
+.vscode/
+*.iml
+
