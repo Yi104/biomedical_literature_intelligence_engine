@@ -10,14 +10,9 @@ This script include:
 import json, os
 import numpy as np
 from dataclasses import dataclass
-import pandas as pd
-import argparse
-from datetime import datetime
 
 # Huggingface
-from transformers import (AutoTokenizer, AutoModelForTokenClassification, Trainer, TrainingArguments, DataCollatorForTokenClassification,AutoConfig)
-# Weight & Bias
-import wandb
+from transformers import (AutoTokenizer, AutoModelForSequenceClassification, AutoModelForTokenClassification, Trainer, TrainingArguments, DataCollatorForTokenClassification)
 
 # seqeval https://github.com/chakki-works/seqeval
 from seqeval.metrics import precision_score, recall_score, f1_score, classification_report
@@ -25,7 +20,6 @@ from seqeval.metrics import precision_score, recall_score, f1_score, classificat
 # helpers
 from src.data import load_ner_dataset, tokenize_and_align_labels
 from src.utils import set_seed
-
 
 @dataclass
 class Config:
@@ -39,14 +33,11 @@ class Config:
     per_device_eval_batch_size: int
     warmup_ratio: float
     logging_steps: int
-    eval_strategy: str
+    eval_strategy: str  # epochs
     eval_steps: int
-    save_strategy: str
+    save_strategy: str # epochs
     save_steps: int
     seed: int
-    hidden_dropout: float = 0.1
-    attention_dropout: float = 0.1
-    run_name: str = "default"
 
 
 def compute_metrics(eval_pred, label_list):
@@ -59,10 +50,7 @@ def compute_metrics(eval_pred, label_list):
     :param label_list: List[str], list of label strings, e.g ["O", "B-Chemical", "I-Chemical", "B-Disease" ...]
     :return: metrics  dict {precision, recall, f1_score}
     """
-    # predictions, labels = eval_pred
-
-    predictions = getattr(eval_pred, "predictions", eval_pred[0])
-    labels = getattr(eval_pred, "label_ids", eval_pred[1])
+    predictions, labels = eval_pred
 
     # shape: (batch_size, seq_len, num_labels)
     preds = np.argmax(predictions, axis=2)
@@ -84,28 +72,6 @@ def compute_metrics(eval_pred, label_list):
 
     return {"precision": p, "recall": r, "f1": f1}
 
-def parse_args():
-    p = argparse.ArgumentParser()
-    p.add_argument("--config_path", type=str, default=None)
-    p.add_argument("--model_name", type=str, default="dmis-lab/biobert-base-cased-v1.1")
-    p.add_argument("--dataset", type=str, default="bc5cdr")
-    p.add_argument("--max_length", type=int, default=512)
-    p.add_argument("--learning_rate", type=float, default=3e-5)
-    p.add_argument("--weight_decay", type=float, default=0.01)
-    p.add_argument("--num_train_epochs", type=int, default=3)
-    p.add_argument("--per_device_train_batch_size", type=int, default=16)
-    p.add_argument("--per_device_eval_batch_size", type=int, default=16)
-    p.add_argument("--warmup_ratio", type=float, default=0.0)
-    p.add_argument("--logging_steps", type=int, default=50)
-    p.add_argument("--eval_strategy", type=str, default="epoch")  # "no"|"steps"|"epoch"
-    p.add_argument("--eval_steps", type=int, default=500)
-    p.add_argument("--save_strategy", type=str, default="epoch")
-    p.add_argument("--save_steps", type=int, default=500)
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--hidden_dropout", type=float, default=0.1)
-    p.add_argument("--attention_dropout", type=float, default=0.1)
-    p.add_argument("--run_name", type=str, default="baseline")
-    return p.parse_args()
 # ======================= Main Training Pipeline =====================
 
 def main(config_path: str = "configs/base.json"):
@@ -123,38 +89,14 @@ def main(config_path: str = "configs/base.json"):
     2. Load dataset and label space.
     3. Tokenize input text and align labels to subwords.
     4. Initialize BioBERT model for token classification.
-    5. Define training arguments
-    6. Define Trainer.
-    7. Train model.
-    8. Evaluate model and Save best checkpoint and final test metrics.
+    5. Define training arguments and Trainer.
+    6. Train and evaluate model.
+    7. Save best checkpoint and final test metrics.
     """
 
-    # ---1. Load configuration---
-    # Parse CLI + JSON defaults
-    args = parse_args()
-    cfg_defaults = {}
-    if args.config_path:
-        with open(args.config_path) as f:
-            cfg_defaults = json.load(f)
-    # Merge JSON defaults with CLI
-    merged = {**cfg_defaults,
-              **{k:v for k, v in vars(args).items() if k != "config_path"}}
-
-    cfg = Config(**merged)
-    run = wandb.init( project="biomarker-ner",
-                name=cfg.run_name,
-                config=cfg.__dict__
-         )
-    run_id = run.id if run else datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    local_output_dir = f"outputs/run_{run_id}"
-    os.makedirs(local_output_dir, exist_ok=True)
-
+    # 1. Load configuration
+    cfg = Config(**json.load(open(config_path)))
     set_seed(cfg.seed)
-
-
-
-
 
     # 2. Load dataset
     ds, text_col, label_col, label_list = load_ner_dataset(cfg.dataset)
@@ -167,43 +109,30 @@ def main(config_path: str = "configs/base.json"):
 
 
     # 4. Model (BioBERT for NER)
-    model_config = AutoConfig.from_pretrained(
-        cfg.model_name,
-        num_labels=len(label_list),
-        hidden_dropout_prob=cfg.hidden_dropout,
-        attention_probs_dropout_prob=cfg.attention_dropout
-    )
-
-
     model = AutoModelForTokenClassification.from_pretrained(
         cfg.model_name,
-        config = model_config
+        num_labels=len(label_list)
     )
-
-
-    run = wandb.run  # after wandb.init(), this is always available
 
 
     # 5. Training arguments
-    training_args = TrainingArguments(
-        output_dir=local_output_dir,
-        run_name=cfg.run_name,
+    args = TrainingArguments(
+        output_dir="outputs/checkpoints",
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
         num_train_epochs=cfg.num_train_epochs,
         per_device_train_batch_size=cfg.per_device_train_batch_size,
         per_device_eval_batch_size=cfg.per_device_eval_batch_size,
         warmup_ratio=cfg.warmup_ratio,
-        evaluation_strategy=cfg.eval_strategy, # ? evaluation strategy/ eval strategy
+        eval_strategy=cfg.eval_strategy,
         save_strategy=cfg.save_strategy,
         eval_steps=cfg.eval_steps,
         save_steps=cfg.save_steps,
         logging_steps=cfg.logging_steps,
         save_total_limit=2,            # keep last 2 checkpoints
         load_best_model_at_end=True,
-        metric_for_best_model="eval_f1",    # this need to match the oconfig
+        metric_for_best_model="f1",    # choose F1 for best model
         greater_is_better=True,
-        report_to = ["wandb"] # use a list
     )
 
 
@@ -215,7 +144,7 @@ def main(config_path: str = "configs/base.json"):
 
     trainer = Trainer(
         model=model,
-        args=training_args,
+        args=args,
         train_dataset=tokenized["train"],
         eval_dataset=tokenized["validation"],
         tokenizer=tokenizer,
@@ -227,48 +156,15 @@ def main(config_path: str = "configs/base.json"):
     trainer.train()
 
     # Save best model checkpoint
-    best_dir = f"{local_output_dir}/best_model"
-    trainer.save_model(best_dir)
-    tokenizer.save_pretrained(best_dir)
+    trainer.save_model("outputs/best_model")
+    tokenizer.save_pretrained("outputs/best_model")
 
 
-    # 8. Final test evaluation and save results
-    try:
-        test_metrics = trainer.evaluate(tokenized["test"], metric_key_prefix="test")
-    except Exception as e:
-        print(f"[WARN] Test evaluation failed: {e}")
-        test_metrics = {"precision": 0.0, "recall": 0.0, "f1": 0.0}
-
-    # --- Save test metrics to JSON ---
+    # 8. Final test evaluation
+    metrics = trainer.evaluate(tokenized["test"])
     os.makedirs("outputs/reports", exist_ok=True)
-
-    # 9a) Per-run CSV (unique filename prevents clashes in sweeps)
-    per_run_csv = f"outputs/reports/run_{run_id}.csv"
-    row = {**cfg.__dict__, **test_metrics, "run_id": run_id}
-    pd.DataFrame([row]).to_csv(per_run_csv, index=False)
-    print(f"[INFO] Per-run results saved to {per_run_csv}")
-
-    # 9b) Master CSV (LOCAL) – best effort append
-    master_csv = "outputs/reports/all_results.csv"
-    try:
-        if os.path.exists(master_csv):
-            df = pd.read_csv(master_csv)
-            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-        else:
-            df = pd.DataFrame([row])
-        df.to_csv(master_csv, index=False)
-        print(f"[INFO] Results appended to {master_csv}")
-    except Exception as e:
-        # If multiple processes race, report warning
-        print(f"[WARN] Could not append to {master_csv}: {e}. Per-run CSV is still saved.")
-
-
-    # # --- log to W&B ---
-    # val_metrics = trainer.evaluate(tokenized["validation"]) # force validation after eval
-    # wandb.log(val_metrics)
-    wandb.log(test_metrics)  # push result to W&B dashboard
-    # close w&b run
-    wandb.finish()
+    with open("outputs/reports/test_metrics.json", "w") as f:
+        json.dump(metrics, f, indent=2)
 
 
 
