@@ -1,0 +1,25 @@
+program: src/train.py
+method: random
+metric:
+  name: eval/f1
+  goal: maximize
+parameters:
+  learning_rate:
+    values: [2e-5, 3e-5, 5e-5]
+  per_device_train_batch_size:
+    values: [8, 16, 32]
+  max_length:
+    values: [128, 256, 512]
+  num_train_epochs:
+    values: [3, 4, 5, 6, 8]
+  hidden_dropout:
+    values: [0.1, 0.2, 0.3]
+  attention_dropout:
+    values: [0.1, 0.2, 0.3],
+  weight_decay:
+    values: [0.0, 0.1, 0.01, 0.001, 0.0001],
+  warmup_ratio:
+    values: [0.0, 0.1]
+
+
+

@@ -13,6 +13,8 @@ from dataclasses import dataclass
 
 # Huggingface
 from transformers import (AutoTokenizer, AutoModelForSequenceClassification, AutoModelForTokenClassification, Trainer, TrainingArguments, DataCollatorForTokenClassification,AutoConfig)
+# weight & bias
+import wandb
 
 # seqeval https://github.com/chakki-works/seqeval
 from seqeval.metrics import precision_score, recall_score, f1_score, classification_report
@@ -101,6 +103,13 @@ def main(config_path: str = "configs/base.json"):
     cfg = Config(**json.load(open(config_path)))
     set_seed(cfg.seed)
 
+    #  Initialize W&B run
+    wandb.init(
+        project="biomarker-ner",
+        name=cfg.run_name if hasattr(cfg, "run_name") else "baseline",
+        config=cfg.__dict__
+    )
+
     # 2. Load dataset
     ds, text_col, label_col, label_list = load_ner_dataset(cfg.dataset)
 
@@ -122,14 +131,15 @@ def main(config_path: str = "configs/base.json"):
 
     model = AutoModelForTokenClassification.from_pretrained(
         cfg.model_name,
-        num_labels=len(label_list)
+        num_labels=len(label_list),
+        config = model_config
     )
 
 
     # 5. Training arguments
     args = TrainingArguments(
         output_dir="outputs/checkpoints",
-        run_name=cfg.run_name,
+        run_name=cfg.run_name if hasattr(cfg, "run_name") else "baseline",
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
         num_train_epochs=cfg.num_train_epochs,
@@ -145,6 +155,7 @@ def main(config_path: str = "configs/base.json"):
         load_best_model_at_end=True,
         metric_for_best_model="f1",    # choose F1 for best model
         greater_is_better=True,
+        report_to = "wandb"
     )
 
 
@@ -177,6 +188,10 @@ def main(config_path: str = "configs/base.json"):
     os.makedirs("outputs/reports", exist_ok=True)
     with open("outputs/reports/test_metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
+
+
+    # close w&b run
+    wandb.finish()
 
 
 
