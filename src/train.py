@@ -12,7 +12,7 @@ import numpy as np
 from dataclasses import dataclass
 
 # Huggingface
-from transformers import (AutoTokenizer, AutoModelForSequenceClassification, AutoModelForTokenClassification, Trainer, TrainingArguments, DataCollatorForTokenClassification)
+from transformers import (AutoTokenizer, AutoModelForSequenceClassification, AutoModelForTokenClassification, Trainer, TrainingArguments, DataCollatorForTokenClassification,AutoConfig)
 
 # seqeval https://github.com/chakki-works/seqeval
 from seqeval.metrics import precision_score, recall_score, f1_score, classification_report
@@ -38,6 +38,9 @@ class Config:
     save_strategy: str # epochs
     save_steps: int
     seed: int
+    hidden_droupout: float = 0.1
+    attention_droupout: float = 0.1
+    run_name: str = "default"
 
 
 def compute_metrics(eval_pred, label_list):
@@ -109,6 +112,14 @@ def main(config_path: str = "configs/base.json"):
 
 
     # 4. Model (BioBERT for NER)
+    model_config = AutoConfig.from_pretrained(
+        cfg.model_name,
+        num_labels=len(label_list),
+        hidden_dropout_prob=cfg.hidden_dropout,
+        attention_probs_dropout_prob=cfg.attention_dropout
+    )
+
+
     model = AutoModelForTokenClassification.from_pretrained(
         cfg.model_name,
         num_labels=len(label_list)
@@ -118,6 +129,7 @@ def main(config_path: str = "configs/base.json"):
     # 5. Training arguments
     args = TrainingArguments(
         output_dir="outputs/checkpoints",
+        run_name=cfg.run_name,
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
         num_train_epochs=cfg.num_train_epochs,

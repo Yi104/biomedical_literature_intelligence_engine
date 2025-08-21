@@ -13,5 +13,7 @@
   "eval_steps": 200,
   "save_strategy": "epoch",
   "save_steps": 200,
-  "seed": 42
+  "seed": 42,
+  "hidden_dropout": 0.1,
+  "attention_dropout": 0.1
 }
