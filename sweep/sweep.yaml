@@ -1,25 +1,61 @@
 program: src/train.py
 method: random
+
 metric:
   name: eval/f1
   goal: maximize
+
 parameters:
-  learning_rate:
-    values: [2e-5, 3e-5, 5e-5]
-  per_device_train_batch_size:
-    values: [8, 16, 32]
+  model_name:
+    value: "dmis-lab/biobert-base-cased-v1.1"
+
+  dataset:
+    value: "bc5cdr"
+
   max_length:
     values: [128, 256, 512]
+
+  learning_rate:
+    values: [2e-5, 3e-5, 5e-5]
+
+  weight_decay:
+    values: [0.1, 0.01, 0.001, 0.0001]
+
   num_train_epochs:
     values: [3, 4, 5, 6, 8]
-  hidden_dropout:
-    values: [0.1, 0.2, 0.3]
-  attention_dropout:
-    values: [0.1, 0.2, 0.3]
-  weight_decay:
-    values: [0.0, 0.1, 0.01, 0.001, 0.0001]
+
+  per_device_train_batch_size:
+    values: [8, 16, 32]
+
+  per_device_eval_batch_size:
+    value: 16   # fixed, matches baseline config
+
   warmup_ratio:
     values: [0.0, 0.1]
 
+  logging_steps:
+    value: 50   # baseline default
 
+  eval_strategy:
+    value: "epoch"
+
+  eval_steps:
+    value: 500
+  save_strategy:
+    value: "epoch"
+
+  save_steps:
+    value: 500
+
+  seed:
+    value: 42
+
+  hidden_dropout:
+    values: [0.1, 0.2, 0.3]
+
+  attention_dropout:
+    values: [0.1, 0.2, 0.3]
+
+  run_name:
+    value: "sweep"
 

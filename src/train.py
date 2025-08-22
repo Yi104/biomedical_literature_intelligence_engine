@@ -102,15 +102,25 @@ def main(config_path: str = "configs/base.json"):
     """
 
     # 1. Load configuration
-    cfg = Config(**json.load(open(config_path)))
-    set_seed(cfg.seed)
+    if config_path is not None:
+        # Baseline run: load JSON config
+        cfg_dict = json.load(open(config_path))
+        cfg = Config(**cfg_dict)
 
-    #  Initialize W&B run
-    wandb.init(
-        project="biomarker-ner",
-        name=cfg.run_name if hasattr(cfg, "run_name") else "baseline",
-        config=cfg.__dict__
-    )
+        # Start wandb for baseline logging
+        wandb.init(
+            project="biomarker-ner",
+            name=cfg.run_name if hasattr(cfg, "run_name") else "baseline",
+            config=cfg.__dict__
+        )
+
+    else:
+        # Sweep run: wandb provides config
+        wandb.init(project="biomarker-ner")
+        cfg_dict = dict(wandb.config)
+        cfg = Config(**cfg_dict)
+
+    set_seed(cfg.seed)
 
     # 2. Load dataset
     ds, text_col, label_col, label_list = load_ner_dataset(cfg.dataset)
