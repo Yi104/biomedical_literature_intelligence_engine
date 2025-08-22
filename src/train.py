@@ -11,10 +11,11 @@ import json, os
 import numpy as np
 from dataclasses import dataclass
 import pandas as pd
+import argparse
 
 # Huggingface
 from transformers import (AutoTokenizer, AutoModelForSequenceClassification, AutoModelForTokenClassification, Trainer, TrainingArguments, DataCollatorForTokenClassification,AutoConfig)
-# weight & bias
+# Weight & Bias
 import wandb
 
 # seqeval https://github.com/chakki-works/seqeval
@@ -37,9 +38,9 @@ class Config:
     per_device_eval_batch_size: int
     warmup_ratio: float
     logging_steps: int
-    eval_strategy: str  # epochs
+    eval_strategy: str
     eval_steps: int
-    save_strategy: str # epochs
+    save_strategy: str
     save_steps: int
     seed: int
     hidden_dropout: float = 0.1
@@ -79,6 +80,28 @@ def compute_metrics(eval_pred, label_list):
 
     return {"precision": p, "recall": r, "f1": f1}
 
+def parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("--config_path", type=str, default=None)
+    p.add_argument("--model_name", type=str, default="dmis-lab/biobert-base-cased-v1.1")
+    p.add_argument("--dataset", type=str, default="bc5cdr")
+    p.add_argument("--max_length", type=int, default=512)
+    p.add_argument("--learning_rate", type=float, default=3e-5)
+    p.add_argument("--weight_decay", type=float, default=0.01)
+    p.add_argument("--num_train_epochs", type=int, default=3)
+    p.add_argument("--per_device_train_batch_size", type=int, default=16)
+    p.add_argument("--per_device_eval_batch_size", type=int, default=16)
+    p.add_argument("--warmup_ratio", type=float, default=0.0)
+    p.add_argument("--logging_steps", type=int, default=50)
+    p.add_argument("--eval_strategy", type=str, default="epoch")  # "no"|"steps"|"epoch"
+    p.add_argument("--eval_steps", type=int, default=500)
+    p.add_argument("--save_strategy", type=str, default="epoch")
+    p.add_argument("--save_steps", type=int, default=500)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--hidden_dropout", type=float, default=0.1)
+    p.add_argument("--attention_dropout", type=float, default=0.1)
+    p.add_argument("--run_name", type=str, default="baseline")
+    return p.parse_args()
 # ======================= Main Training Pipeline =====================
 
 def main(config_path: str = "configs/base.json"):
@@ -96,31 +119,50 @@ def main(config_path: str = "configs/base.json"):
     2. Load dataset and label space.
     3. Tokenize input text and align labels to subwords.
     4. Initialize BioBERT model for token classification.
-    5. Define training arguments and Trainer.
-    6. Train and evaluate model.
-    7. Save best checkpoint and final test metrics.
+    5. Define training arguments
+    6. Define Trainer.
+    7. Train model.
+    8. Evaluate model and Save best checkpoint and final test metrics.
     """
 
-    # 1. Load configuration
-    if config_path is not None:
-        # Baseline run: load JSON config
-        cfg_dict = json.load(open(config_path))
-        cfg = Config(**cfg_dict)
+    # ---1. Load configuration---
+    # Parse CLI + JSON defaults
+    args = parse_args()
+    cfg_defaults = {}
+    if args.config_path:
+        with open(args.config_path) as f:
+            cfg_defaults = json.load(f)
+    # Merge JSON defaults with CLI
+    merged = {**cfg_defaults,
+              **{k:v for k, v in vars(args).items() if k != "config_path"}}
 
-        # Start wandb for baseline logging
-        wandb.init(
-            project="biomarker-ner",
-            name=cfg.run_name if hasattr(cfg, "run_name") else "baseline",
-            config=cfg.__dict__
-        )
-
-    else:
-        # Sweep run: wandb provides config
-        wandb.init(project="biomarker-ner")
-        cfg_dict = dict(wandb.config)
-        cfg = Config(**cfg_dict)
-
+    cfg = Config(**merged)
+    wandb.init( project="biomarker-ner",
+                name=cfg.run_name,
+                config=cfg.__dict__
+         )
     set_seed(cfg.seed)
+    # if config_path is not None:
+    #     # Baseline run: load JSON config
+    #     cfg_dict = json.load(open(config_path))
+    #     cfg = Config(**cfg_dict)
+    #
+    #     # Start wandb for baseline logging
+    #     wandb.init(
+    #         project="biomarker-ner",
+    #         name=cfg.run_name if hasattr(cfg, "run_name") else "baseline",
+    #         config=cfg.__dict__
+    #     )
+    #
+    # else:
+    #     # Sweep run: wandb provides config
+    #     wandb.init(project="biomarker-ner")
+    #     cfg_dict = dict(wandb.config)
+    #     cfg = Config(**cfg_dict)
+    #
+
+
+
 
     # 2. Load dataset
     ds, text_col, label_col, label_list = load_ner_dataset(cfg.dataset)
@@ -150,14 +192,14 @@ def main(config_path: str = "configs/base.json"):
     # 5. Training arguments
     args = TrainingArguments(
         output_dir="outputs/checkpoints",
-        run_name=cfg.run_name if hasattr(cfg, "run_name") else "baseline",
+        run_name=cfg.run_name,
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
         num_train_epochs=cfg.num_train_epochs,
         per_device_train_batch_size=cfg.per_device_train_batch_size,
         per_device_eval_batch_size=cfg.per_device_eval_batch_size,
         warmup_ratio=cfg.warmup_ratio,
-        eval_strategy=cfg.eval_strategy,
+        eval_strategy=cfg.eval_strategy, # ? evaluation strategy?
         save_strategy=cfg.save_strategy,
         eval_steps=cfg.eval_steps,
         save_steps=cfg.save_steps,
@@ -194,7 +236,7 @@ def main(config_path: str = "configs/base.json"):
     tokenizer.save_pretrained("outputs/best_model")
 
 
-    # 8. Final test evaluation
+    # 8. Final test evaluation and save results
     try:
         metrics = trainer.evaluate(tokenized["test"])
     except Exception as e:
@@ -207,8 +249,6 @@ def main(config_path: str = "configs/base.json"):
     with open(report_path, "w") as f:
         json.dump(metrics, f, indent=2)
     print(f"[INFO] Test metrics saved to {report_path}")
-
-
 
     # log configs, metrics into local csv
     run_summary = {**cfg.__dict__, **metrics}
@@ -223,8 +263,6 @@ def main(config_path: str = "configs/base.json"):
 
     # --- log to W&B ---
     wandb.log({"test_metrics": metrics})  # push result to W&B dashboard
-
-
     # close w&b run
     wandb.finish()
 

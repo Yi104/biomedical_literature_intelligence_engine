@@ -1,6 +1,30 @@
 program: src/train.py
 method: random
 
+# Add this block to avoid W&B parsing issue
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --model_name=${model_name}
+  - --dataset=${dataset}
+  - --max_length=${max_length}
+  - --learning_rate=${learning_rate}
+  - --weight_decay=${weight_decay}
+  - --num_train_epochs=${num_train_epochs}
+  - --per_device_train_batch_size=${per_device_train_batch_size}
+  - --per_device_eval_batch_size=${per_device_eval_batch_size}
+  - --warmup_ratio=${warmup_ratio}
+  - --logging_steps=${logging_steps}
+  - --eval_strategy=${eval_strategy}
+  - --eval_steps=${eval_steps}
+  - --save_strategy=${save_strategy}
+  - --save_steps=${save_steps}
+  - --seed=${seed}
+  - --hidden_dropout=${hidden_dropout}
+  - --attention_dropout=${attention_dropout}
+  - --run_name=${run_name}
+
 metric:
   name: eval/f1
   goal: maximize
