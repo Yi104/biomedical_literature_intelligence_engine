@@ -223,20 +223,33 @@ def main(config_path: str = "configs/base.json"):
         print(f"[WARN] Test evaluation failed: {e}")
         metrics = {"precision": 0.0, "recall": 0.0, "f1": 0.0}
 
-    # --- save JSON ---
+    # --- Save test metrics to JSON ---
     os.makedirs("outputs/reports", exist_ok=True)
-    run_csv = f'outputs/reports/runs/run_{run.id}.csv'
-    pd.DataFrame([{**cfg.__dict__, **metrics}]).to_csv(run_csv, index=False)
+    report_path = "outputs/reports/test_metrics.json"
+    with open(report_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"[INFO] Test metrics saved to {report_path}")
 
-    # Append result to master csv
-    master_path = "outputs/reports/sweep_all_results.csv"
-    if os.path.exists(master_path):
-        df = pd.read_csv(master_path)
-        df = pd.concat([df, pd.DataFrame([{**cfg.__dict__, **metrics}])], ignore_index=True)
+    # --- Merge config + metrics ---
+    run_summary = {**cfg.__dict__, **metrics}
+
+    # --- Save per-run CSV (unique file, uses wandb run id) ---
+    run = wandb.run  # after wandb.init(), this is always available
+    per_run_csv = f"outputs/reports/run_{run.id}.csv"
+    pd.DataFrame([run_summary]).to_csv(per_run_csv, index=False)
+    print(f"[INFO] Per-run results saved to {per_run_csv}")
+
+    # --- Append to master CSV ---
+    master_csv = "outputs/reports/sall_results.csv"
+    if os.path.exists(master_csv):
+        df = pd.read_csv(master_csv)
+        df = pd.concat([df, pd.DataFrame([run_summary])], ignore_index=True)
     else:
-        df = pd.DataFrame([{**cfg.__dict__, **metrics}])
-    df.to_csv(master_path, index=False)
-    print(f"[INFO] Results appended to {master_path}")
+        df = pd.DataFrame([run_summary])
+    df.to_csv(master_csv, index=False)
+    print(f"[INFO] Results appended to {master_csv}")
+
+
 
     # --- log to W&B ---
     wandb.log({"test_metrics": metrics})  # push result to W&B dashboard
