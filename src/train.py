@@ -1,21 +1,23 @@
 """
-Fine-tune BioBERT for Named Entity Recognition (NER)
-
-This script include:
-- training pipeline using Huggingface 'Trainer'
-- hypermarameter configs via JSON
-- Seqeval metrics (f1, precision, recall) at entity level
+Fine-tune BioBERT for Named Entity Recognition (NER).
 """
 
-import json, os
+import json
+import os
 import numpy as np
 from dataclasses import dataclass
 
 # Huggingface
-from transformers import (AutoTokenizer, AutoModelForSequenceClassification, AutoModelForTokenClassification, Trainer, TrainingArguments, DataCollatorForTokenClassification)
+from transformers import (
+    AutoTokenizer,
+    AutoModelForTokenClassification,
+    Trainer,
+    TrainingArguments,
+    DataCollatorForTokenClassification,
+)
 
 # seqeval https://github.com/chakki-works/seqeval
-from seqeval.metrics import precision_score, recall_score, f1_score, classification_report
+from seqeval.metrics import precision_score, recall_score, f1_score
 
 # helpers
 from src.data import load_ner_dataset, tokenize_and_align_labels
@@ -95,7 +97,8 @@ def main(config_path: str = "configs/base.json"):
     """
 
     # 1. Load configuration
-    cfg = Config(**json.load(open(config_path)))
+    with open(config_path, "r") as f:
+        cfg = Config(**json.load(f))
     set_seed(cfg.seed)
 
     # 2. Load dataset
@@ -113,6 +116,8 @@ def main(config_path: str = "configs/base.json"):
         cfg.model_name,
         num_labels=len(label_list)
     )
+    model.config.label2id = {label: idx for idx, label in enumerate(label_list)}
+    model.config.id2label = {idx: label for idx, label in enumerate(label_list)}
 
 
     # 5. Training arguments
@@ -171,5 +176,4 @@ def main(config_path: str = "configs/base.json"):
 if __name__ == "__main__":
     print("Training BioBERT on biomedical NER...")
     main()
-
 
