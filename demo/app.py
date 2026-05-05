@@ -7,8 +7,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.pipeline import run_search_ner_pipeline
-from src.infer import get_label_mapping
+from src.retrieval.structured_query import run_search_ner_pipeline
+from src.extraction.ner_infer import get_label_mapping
 
 
 st.title("PubMed Biomarker Search + NER")

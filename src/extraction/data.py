@@ -37,6 +37,10 @@ relations
 
 from datasets import load_dataset, DatasetDict
 from transformers import AutoTokenizer
+import argparse
+
+# Layer: extraction
+# Role: convert raw BigBio examples into token-level training features for NER.
 
 LABEL_ALL_TOKENS = True
 
@@ -83,7 +87,7 @@ def load_ner_dataset(name: str, tokenizer_name: str = None, cache_dir: str = Non
     # Initialize tokenizer
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name or "dmis-lab/biobert-base-cased-v1.1")
 
-    # Step 1: Convert KB schema (entities with offsets) into token-level BIO tags
+    # Step 1: Convert KB-style entity annotations into BIO tags over whitespace tokens.
     def kb_to_bio(example):
         text = " ".join(p for passage in example["passages"] for p in passage["text"])
         entities = example["entities"]
@@ -108,13 +112,13 @@ def load_ner_dataset(name: str, tokenizer_name: str = None, cache_dir: str = Non
 
     ds = ds.map(kb_to_bio)
 
-    # Step 2: Build label vocabulary
+    # Step 2: Build deterministic label vocabulary for model config.
     unique_tags = set(tag for ex in ds["train"]["ner_tags_str"] for tag in ex)
     labels = sorted(unique_tags)
     label2id = {l: i for i, l in enumerate(labels)}
     id2label = {i: l for l, i in label2id.items()}
 
-    # Step 3: Convert string tags → numeric IDs
+    # Step 3: Convert string tags into integer IDs expected by Trainer.
     def encode_tags(example):
         return {"ner_tags": [label2id[tag] for tag in example["ner_tags_str"]]}
 
@@ -143,6 +147,7 @@ def tokenize_and_align_labels(ds, tokenizer: AutoTokenizer, text_col: str, label
             - labels
     """
     def _align(batch):
+        # Align word-level labels to subword tokens and mask specials with -100.
         tokenized = tokenizer(batch[text_col], is_split_into_words=True,
                               truncation=True, padding=False, max_length=max_length)
         new_labels = []
@@ -164,3 +169,16 @@ def tokenize_and_align_labels(ds, tokenizer: AutoTokenizer, text_col: str, label
 
     return ds.map(_align, batched=True)
 
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Dataset/label alignment smoke check.")
+    parser.add_argument("--dataset", type=str, default="bc5cdr")
+    parser.add_argument("--model_name", type=str, default="dmis-lab/biobert-base-cased-v1.1")
+    parser.add_argument("--max_length", type=int, default=128)
+    args = parser.parse_args()
+
+    ds, text_col, label_col, labels = load_ner_dataset(args.dataset, tokenizer_name=args.model_name)
+    tok = AutoTokenizer.from_pretrained(args.model_name)
+    tokenized = tokenize_and_align_labels(ds, tok, text_col, label_col, args.max_length)
+    print(f"OK: extraction.data labels={len(labels)} train_rows={len(ds['train'])}")
+    print(f"tokenized_columns={tokenized['train'].column_names}")

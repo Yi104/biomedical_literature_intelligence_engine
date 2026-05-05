@@ -1,8 +1,12 @@
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 import torch
 
+# Layer: extraction
+# Role: run BioBERT NER inference and convert token labels into entity spans.
+
 
 def get_label_mapping(model_path: str):
+    # Exposes model id->label for UI/debugging and reproducibility checks.
     model = AutoModelForTokenClassification.from_pretrained(model_path)
     id2label = model.config.id2label or {}
     id2label = {int(k): v for k, v in id2label.items()} if id2label else {}
@@ -10,6 +14,7 @@ def get_label_mapping(model_path: str):
 
 
 def _collect_entities(words_with_labels):
+    # Merge BIO token predictions into contiguous entity spans.
     entities = []
     current = None
 
@@ -49,6 +54,9 @@ def _collect_entities(words_with_labels):
 
 @torch.inference_mode()
 def ner(model_path: str, text_tokens: list[str], max_length: int = 256):
+    """
+    Run token-level NER and return both token predictions and merged entities.
+    """
     tok = AutoTokenizer.from_pretrained(model_path)
     model = AutoModelForTokenClassification.from_pretrained(model_path)
     id2label = model.config.id2label or {}
@@ -67,6 +75,7 @@ def ner(model_path: str, text_tokens: list[str], max_length: int = 256):
     token_predictions = []
     seen_word_ids = set()
     for j, word_id in enumerate(word_ids):
+        # Keep only the first subword piece for each input token.
         if word_id is None or word_id in seen_word_ids:
             continue
         seen_word_ids.add(word_id)

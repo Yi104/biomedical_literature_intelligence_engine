@@ -103,10 +103,11 @@ Open:
 ## Files and Roles
 
 - `demo/app.py`: Streamlit user interface
-- `src/pubmed.py`: PubMed search + fetch
-- `src/pipeline.py`: end-to-end pipeline (`query -> papers -> ner -> tables`)
-- `src/infer.py`: model inference and entity aggregation
-- `src/train.py`: training pipeline for model
+- `src/ingestion/pubmed_client.py`: PubMed search + fetch
+- `src/retrieval/structured_query.py`: end-to-end retrieval pipeline (`query -> papers -> ner -> tables`)
+- `src/extraction/ner_infer.py`: model inference and entity aggregation
+- `src/extraction/train_ner.py`: NER training pipeline
+- `pipelines/run_train.py`, `pipelines/run_eval.py`: runnable training/evaluation entrypoints
 
 ## Troubleshooting
 
@@ -136,9 +137,34 @@ Use Python 3.10/3.11 environment as shown above.
 ## Optional: Retrain the NER Model
 
 ```bash
-python -m src.train
+python -m pipelines.run_train
 ```
 
 Artifacts:
 - Best model: `outputs/best_model/`
 - Metrics: `outputs/reports/test_metrics.json`
+
+## Module Smoke Checks (Old-school)
+
+Run each core module directly:
+
+```bash
+python -m src.ingestion.pubmed_client --query "BRCA1 breast cancer" --retmax 3
+python -m src.extraction.data --dataset bc5cdr --max_length 128
+python -m src.extraction.train_ner --dry_run
+python -m src.retrieval.structured_query --query "BRCA1 breast cancer" --retmax 3
+```
+
+## Unit Tests
+
+Run minimal unit tests:
+
+```bash
+pytest -q tests/unit
+```
+
+Current unit tests focus on:
+
+- PubMed XML parsing (mocked)
+- Retrieval pipeline assembly (mocked)
+- BIO span-to-entity merge behavior

@@ -5,6 +5,7 @@ Fine-tune BioBERT for Named Entity Recognition (NER).
 import json
 import os
 import numpy as np
+import argparse
 from dataclasses import dataclass
 
 # Huggingface
@@ -20,8 +21,11 @@ from transformers import (
 from seqeval.metrics import precision_score, recall_score, f1_score
 
 # helpers
-from src.data import load_ner_dataset, tokenize_and_align_labels
-from src.utils import set_seed
+from src.extraction.data import load_ner_dataset, tokenize_and_align_labels
+from src.extraction.train_utils import set_seed
+
+# Layer: extraction
+# Role: train and evaluate the NER model, then export artifacts for inference.
 
 @dataclass
 class Config:
@@ -54,7 +58,7 @@ def compute_metrics(eval_pred, label_list):
     """
     predictions, labels = eval_pred
 
-    # shape: (batch_size, seq_len, num_labels)
+    # Greedy token prediction from logits.
     preds = np.argmax(predictions, axis=2)
 
     # Convert IDs back to label strings, ignore special tokens (-100)
@@ -96,22 +100,22 @@ def main(config_path: str = "configs/base.json"):
     7. Save best checkpoint and final test metrics.
     """
 
-    # 1. Load configuration
+    # 1) Config and reproducibility
     with open(config_path, "r") as f:
         cfg = Config(**json.load(f))
     set_seed(cfg.seed)
 
-    # 2. Load dataset
+    # 2) Dataset loading
     ds, text_col, label_col, label_list = load_ner_dataset(cfg.dataset)
 
-    # 3. Tokenizer + label alignment
+    # 3) Feature construction
     tokenizer = AutoTokenizer.from_pretrained(cfg.model_name)
     tokenized = tokenize_and_align_labels(
         ds, tokenizer, text_col, label_col, cfg.max_length
     )
 
 
-    # 4. Model (BioBERT for NER)
+    # 4) Model init + label mapping persistence
     model = AutoModelForTokenClassification.from_pretrained(
         cfg.model_name,
         num_labels=len(label_list)
@@ -120,7 +124,7 @@ def main(config_path: str = "configs/base.json"):
     model.config.id2label = {idx: label for idx, label in enumerate(label_list)}
 
 
-    # 5. Training arguments
+    # 5) Trainer configuration
     args = TrainingArguments(
         output_dir="outputs/checkpoints",
         learning_rate=cfg.learning_rate,
@@ -141,7 +145,7 @@ def main(config_path: str = "configs/base.json"):
     )
 
 
-    # 6. Trainer
+    # 6) Trainer assembly
     data_collator = DataCollatorForTokenClassification(tokenizer)
 
     def _compute(eval_pred):
@@ -157,15 +161,15 @@ def main(config_path: str = "configs/base.json"):
         compute_metrics=_compute,
     )
 
-    # 7. Train model
+    # 7) Fit
     trainer.train()
 
-    # Save best model checkpoint
+    # Persist model/tokenizer for app usage.
     trainer.save_model("outputs/best_model")
     tokenizer.save_pretrained("outputs/best_model")
 
 
-    # 8. Final test evaluation
+    # 8) Final evaluation report
     metrics = trainer.evaluate(tokenized["test"])
     os.makedirs("outputs/reports", exist_ok=True)
     with open("outputs/reports/test_metrics.json", "w") as f:
@@ -173,7 +177,26 @@ def main(config_path: str = "configs/base.json"):
 
 
 
-if __name__ == "__main__":
-    print("Training BioBERT on biomedical NER...")
-    main()
+def dry_run(config_path: str = "configs/base.json"):
+    # Fast check for config wiring without launching training.
+    with open(config_path, "r") as f:
+        cfg = Config(**json.load(f))
+    print(f"OK: train_ner dry_run config={config_path}")
+    print(f"model_name={cfg.model_name} dataset={cfg.dataset} max_length={cfg.max_length}")
 
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train BioBERT NER.")
+    parser.add_argument("--config_path", type=str, default="configs/base.json")
+    parser.add_argument(
+        "--dry_run",
+        action="store_true",
+        help="Only validate config wiring, do not train.",
+    )
+    args = parser.parse_args()
+
+    if args.dry_run:
+        dry_run(args.config_path)
+    else:
+        print("Training BioBERT on biomedical NER...")
+        main(args.config_path)

@@ -1,8 +1,8 @@
 import json
 import torch
 
-from src.data import load_ner_dataset
-from src.infer import ner
+from src.extraction.data import load_ner_dataset
+from src.extraction.ner_infer import ner
 
 @torch.inference_mode()
 def collect_examples(model_path: str, dataset: str = "bc5cdr", n: int = 20, max_length: int = 256):

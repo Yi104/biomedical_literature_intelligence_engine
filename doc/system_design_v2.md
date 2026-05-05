@@ -414,11 +414,11 @@ Status legend:
 
 | Layer | Status | Current Evidence in Repo | Gap to Close |
 |---|---|---|---|
-| L0 Data (PubMed ingestion) | `PARTIAL` | `src/pubmed.py` supports PubMed search + abstract fetch + year/journal filters | No persistent ingestion log, no dedup/versioning pipeline, no ingestion provenance stored in DB |
-| L1 Extraction (BioBERT NER) | `DONE` | `src/infer.py` performs token inference, label mapping, entity span aggregation | No batch inference service interface yet |
+| L0 Data (PubMed ingestion) | `PARTIAL` | `src/ingestion/pubmed_client.py` supports PubMed search + abstract fetch + year/journal filters | No persistent ingestion log, no dedup/versioning pipeline, no ingestion provenance stored in DB |
+| L1 Extraction (BioBERT NER) | `DONE` | `src/extraction/ner_infer.py` performs token inference, label mapping, entity span aggregation | No batch inference service interface yet |
 | L2 Normalization | `NOT STARTED` | None | Need canonicalization, synonym mapping, optional ontology IDs |
 | L3 Knowledge Base (SQLite) | `NOT STARTED` | None (`db/` folder absent) | Need schema + migration + upsert layer |
-| L4 Retrieval | `PARTIAL` | `src/pipeline.py` returns DataFrame summaries from runtime pipeline | No SQL structured retrieval, no semantic reranking index |
+| L4 Retrieval | `PARTIAL` | `src/retrieval/structured_query.py` returns DataFrame summaries from runtime pipeline | No SQL structured retrieval, no semantic reranking index |
 | L5 Agent | `NOT STARTED` | None | Need planner/controller + tool-calling policy |
 | L6 LLM constrained summarization | `NOT STARTED` | None | Need prompt policy + citation-bound output contract |
 | L7 Output layer | `PARTIAL` | `demo/app.py` table display + CSV export | No API JSON contract, no claim-level citation object |
@@ -427,8 +427,8 @@ Status legend:
 
 | Tool | Target in Design | Status | Current Equivalent |
 |---|---|---|---|
-| `search_pubmed(...)` | Required | `DONE` | `src/pubmed.py::search_pubmed`, `fetch_pubmed_details` |
-| `run_ner(...)` | Required | `PARTIAL` | `src/infer.py::ner` works for one tokenized text; wrapper for paper batches not implemented |
+| `search_pubmed(...)` | Required | `DONE` | `src/ingestion/pubmed_client.py::search_pubmed`, `fetch_pubmed_details` |
+| `run_ner(...)` | Required | `PARTIAL` | `src/extraction/ner_infer.py::ner` works for one tokenized text; wrapper for paper batches not implemented |
 | `update_kb(...)` | Required | `NOT STARTED` | None |
 | `query_kb(...)` | Required | `NOT STARTED` | None (current retrieval is in-memory DataFrame logic) |
 | `get_evidence_sentences(...)` | Required | `NOT STARTED` | None |
@@ -452,7 +452,7 @@ Status legend:
 
 1. Create `db/schema.sql` and `src/kb/upsert.py` for `papers`, `sentences`, `entities`, `entity_mentions`, `gene_disease_evidence`.
 2. Add `update_kb(...)` and `query_kb(...)` tool implementations.
-3. Refactor current `src/pipeline.py` to persist records and retrieve from SQL instead of in-memory only.
+3. Refactor current `src/retrieval/structured_query.py` to persist records and retrieve from SQL instead of in-memory only.
 4. Add minimal `src/agent/controller.py` with deterministic KB-first -> PubMed-refresh decision flow.
 5. Add a constrained summarizer stub (`src/llm/prompts.py`, `src/llm/summarizer.py`) that enforces PMID citations.
 
