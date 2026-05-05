@@ -160,7 +160,7 @@ python -m src.retrieval.structured_query --query "BRCA1 breast cancer" --retmax 
 Run minimal unit tests:
 
 ```bash
-pytest -q tests/unit
+python -m pytest -q tests/unit
 ```
 
 Current unit tests focus on:

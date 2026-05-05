@@ -19,4 +19,4 @@ matplotlib
 
  # Logging & experiment tracking
 wandb
-
+pytest>=7.4
