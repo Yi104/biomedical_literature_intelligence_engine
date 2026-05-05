@@ -111,6 +111,7 @@ Open:
 - `src/extraction/train_ner.py`: NER training pipeline
 - `pipelines/run_train.py`, `pipelines/run_eval.py`: runnable training/evaluation entrypoints
 - `pipelines/run_extract_bc5cdr.py`, `pipelines/run_extract_jnlpba.py`: task-specific entrypoints
+- `doc/system_architecture_diagram.md`: quick architecture diagram
 
 ## Troubleshooting
 
@@ -155,6 +156,12 @@ Task A, gene-disease evidence:
 python -m pipelines.run_extract_bc5cdr --query "BRCA1 breast cancer"
 ```
 
+Local smoke check for Task A:
+
+```bash
+python -m pipelines.run_extract_bc5cdr --smoke
+```
+
 Task B, biomedical entity discovery scaffold:
 
 ```bash
@@ -170,7 +177,7 @@ python -m src.ingestion.pubmed_client --query "BRCA1 breast cancer" --retmax 3
 python -m src.extraction.data --dataset bc5cdr --max_length 128
 python -m src.extraction.train_ner --dry_run
 python -m src.retrieval.structured_query --query "BRCA1 breast cancer" --retmax 3
-python -m src.extraction.bc5cdr_pipeline --query "BRCA1 breast cancer"
+python -m src.extraction.bc5cdr_pipeline --smoke
 python -m src.extraction.jnlpba_pipeline --query "IL-2 gene expression"
 ```
 

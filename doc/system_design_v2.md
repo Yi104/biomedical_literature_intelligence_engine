@@ -9,6 +9,10 @@ Build a production-style biomedical literature intelligence platform with two co
 
 The platform converts unstructured PubMed abstracts into structured, queryable evidence and supports LLM-assisted querying with strict citation grounding.
 
+Quick visual map:
+
+- [System Architecture Diagram](system_architecture_diagram.md)
+
 Core constraints:
 
 - LLM does not generate new biomedical knowledge
