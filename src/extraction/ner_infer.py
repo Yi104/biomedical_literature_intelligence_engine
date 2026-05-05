@@ -51,7 +51,7 @@ def _collect_entities(words_with_labels):
         ent["text"] = " ".join(ent["tokens"])
     return entities
 
-
+# key parameters:  max_length
 @torch.inference_mode()
 def ner(model_path: str, text_tokens: list[str], max_length: int = 256):
     """

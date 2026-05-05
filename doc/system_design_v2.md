@@ -2,7 +2,12 @@
 
 ## 1. Objective
 
-Build a production-style biomedical literature intelligence system that converts unstructured PubMed abstracts into a structured, queryable evidence knowledge base and supports LLM-assisted querying with strict citation grounding.
+Build a production-style biomedical literature intelligence platform with two common task lines:
+
+- Task A: gene-disease evidence extraction and citation-grounded analysis
+- Task B: biomedical entity discovery for broader gene/protein/DNA/RNA/cell-line exploration
+
+The platform converts unstructured PubMed abstracts into structured, queryable evidence and supports LLM-assisted querying with strict citation grounding.
 
 Core constraints:
 
@@ -10,6 +15,12 @@ Core constraints:
 - Every claim must be grounded in PMID-level evidence
 - Structured outputs are first-class artifacts
 - Components are modular, testable, and reproducible
+
+Task separation:
+
+- `BC5CDR` is the main dataset for gene-disease evidence work
+- `JNLPBA` is the broader entity-discovery dataset
+- The platform shares ingestion, retrieval, KB, and UI layers, but keeps task-specific label spaces and outputs separate
 
 ## 2. Layered Architecture
 
@@ -46,6 +57,11 @@ Outputs:
 
 - Mention-level extraction records linked to sentence and PMID
 
+Task-specific models:
+
+- `BC5CDR` model: gene/disease/chemical evidence extraction
+- `JNLPBA` model: broader biomedical entity discovery
+
 ### L2. Normalization Layer
 
 Responsibilities:
@@ -63,6 +79,11 @@ Outputs:
 
 - Canonical entities + normalized mention links
 
+Task-specific normalization:
+
+- For `BC5CDR`, normalize gene and disease mentions for evidence tuples
+- For `JNLPBA`, normalize broader bio-entity mentions for KB expansion
+
 ### L3. Knowledge Base Layer (SQLite-first)
 
 Responsibilities:
@@ -79,6 +100,12 @@ Outputs:
 
 - Queryable evidence knowledge base
 
+Shared KB principle:
+
+- Keep one KB backend
+- Store task-specific entity mentions and evidence in separate tables or views
+- Reuse paper/sentence provenance across both tasks
+
 ### L4. Retrieval Layer
 
 Structured retrieval:
@@ -92,6 +119,11 @@ Optional semantic retrieval:
 Output:
 
 - Ranked evidence packets with sentence text and PMID citations
+
+Task outputs:
+
+- Evidence mode: structured gene-disease evidence packets
+- Discovery mode: broader entity mention summaries and export tables
 
 ### L5. Agent Layer (Tool-Calling Orchestration)
 
@@ -129,6 +161,11 @@ Formats:
 - JSON for APIs
 - Markdown/table for UI
 - CSV for downstream analytics
+
+Task-specific outputs:
+
+- `BC5CDR`: gene, disease, PMID, evidence sentence, evidence type
+- `JNLPBA`: entity type, mention text, PMID, sentence, optional canonical ID
 
 ## 3. Database Schema
 
@@ -227,6 +264,21 @@ Recommended indexes:
 - `idx_gde_pmid(pmid)`
 - `idx_gde_gene_disease(gene_entity_id, disease_entity_id)`
 
+### `bio_entity_mentions`  [planned]
+
+Purpose: task B output table for broader entity discovery.
+
+- `mention_id INTEGER PRIMARY KEY AUTOINCREMENT`
+- `entity_id INTEGER` (FK -> `entities.entity_id`)
+- `pmid TEXT NOT NULL`
+- `sentence_id INTEGER NOT NULL`
+- `mention_text TEXT NOT NULL`
+- `entity_type TEXT NOT NULL`
+- `char_start INTEGER`
+- `char_end INTEGER`
+- `confidence REAL`
+- `model_version TEXT`
+
 ## 4. Tool Abstraction (Agent-Ready API)
 
 Define small deterministic tools with typed returns.
@@ -242,6 +294,11 @@ Returns paper records:
 Returns mention records:
 
 - `pmid`, `sentence_id`, `mention_text`, `entity_type_pred`, `char_start`, `char_end`, `confidence`, `model_version`
+
+Task split:
+
+- `run_ner_bc5cdr(...)` returns gene/disease/chemical evidence mentions
+- `run_ner_jnlpba(...)` returns broader bio-entity mentions
 
 ### `update_kb(papers, mentions) -> dict`
 
@@ -278,6 +335,11 @@ Decision flow:
 5. If still insufficient, return grounded “no evidence found” response.
 6. Call LLM summarizer with evidence packets only.
 7. Return structured output + citations.
+
+Mode routing:
+
+- `evidence` mode routes to the `BC5CDR` workflow
+- `discovery` mode routes to the `JNLPBA` workflow
 
 ## 6. Citation Enforcement Strategy
 
@@ -323,6 +385,8 @@ repo/
       ingest_pipeline.py
     extraction/
       ner_infer.py
+      bc5cdr_pipeline.py
+      jnlpba_pipeline.py
       sentence_split.py
     normalization/
       entity_normalizer.py
@@ -334,6 +398,7 @@ repo/
     retrieval/
       structured_query.py
       semantic_index.py
+      task_router.py
     llm/
       prompts.py
       summarizer.py
@@ -346,7 +411,8 @@ repo/
       dto.py
   pipelines/
     run_ingest.py
-    run_extract.py
+    run_extract_bc5cdr.py
+    run_extract_jnlpba.py
     run_backfill.py
   db/
     kb.sqlite
@@ -368,7 +434,39 @@ repo/
     model.yaml
 ```
 
-## 8. How This Differs from Generic RAG
+## 8. Task Definitions
+
+### Task A: Gene-Disease Evidence
+
+Goal:
+
+- Answer whether a gene is associated with a disease
+- Produce grounded evidence tuples with PMIDs and supporting sentences
+
+Primary dataset:
+
+- `BC5CDR`
+
+Primary outputs:
+
+- `gene`, `disease`, `PMID`, `evidence sentence`, `evidence type`, `directionality`
+
+### Task B: Biomedical Entity Discovery
+
+Goal:
+
+- Extract broader biomedical entities from text
+- Support later KB expansion and exploratory analysis
+
+Primary dataset:
+
+- `JNLPBA`
+
+Primary outputs:
+
+- `entity type`, `mention text`, `PMID`, `sentence`, `canonical entity ID` if available
+
+## 9. How This Differs from Generic RAG
 
 Compared with embedding-only RAG:
 
@@ -383,7 +481,7 @@ Compared with generic LLM chatbots:
 - No evidence means no claim
 - Structured outputs are first-class artifacts for analysis pipelines
 
-## 9. Implementation Priorities
+## 10. Implementation Priorities
 
 ### Phase 1 (MVP)
 
@@ -402,7 +500,7 @@ Compared with generic LLM chatbots:
 - API hardening, caching, and observability
 - Integration with translational research platform workflows
 
-## 10. Progress Tracker (Current Repository Snapshot)
+## 11. Progress Tracker (Current Repository Snapshot)
 
 Status legend:
 
@@ -410,7 +508,7 @@ Status legend:
 - `PARTIAL`: implemented in simplified form, not yet production-complete
 - `NOT STARTED`: design exists but implementation absent
 
-### 10.1 Layer Status
+### 11.1 Layer Status
 
 | Layer | Status | Current Evidence in Repo | Gap to Close |
 |---|---|---|---|
@@ -423,7 +521,7 @@ Status legend:
 | L6 LLM constrained summarization | `NOT STARTED` | None | Need prompt policy + citation-bound output contract |
 | L7 Output layer | `PARTIAL` | `demo/app.py` table display + CSV export | No API JSON contract, no claim-level citation object |
 
-### 10.2 Tool API Status
+### 11.2 Tool API Status
 
 | Tool | Target in Design | Status | Current Equivalent |
 |---|---|---|---|
@@ -433,7 +531,7 @@ Status legend:
 | `query_kb(...)` | Required | `NOT STARTED` | None (current retrieval is in-memory DataFrame logic) |
 | `get_evidence_sentences(...)` | Required | `NOT STARTED` | None |
 
-### 10.3 Repo Structure Status
+### 11.3 Repo Structure Status
 
 | Planned Module | Status |
 |---|---|
@@ -448,7 +546,7 @@ Status legend:
 | `db/` | `NOT STARTED` |
 | `tests/` | `NOT STARTED` |
 
-### 10.4 Immediate Next Milestones
+### 11.4 Immediate Next Milestones
 
 1. Create `db/schema.sql` and `src/kb/upsert.py` for `papers`, `sentences`, `entities`, `entity_mentions`, `gene_disease_evidence`.
 2. Add `update_kb(...)` and `query_kb(...)` tool implementations.
@@ -456,7 +554,7 @@ Status legend:
 4. Add minimal `src/agent/controller.py` with deterministic KB-first -> PubMed-refresh decision flow.
 5. Add a constrained summarizer stub (`src/llm/prompts.py`, `src/llm/summarizer.py`) that enforces PMID citations.
 
-## 11. Reproducibility and Operations Notes
+## 12. Reproducibility and Operations Notes
 
 - Version all model artifacts (`model_version` in mentions)
 - Store ingestion timestamps and query provenance

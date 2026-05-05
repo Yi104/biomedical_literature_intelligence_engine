@@ -17,7 +17,9 @@ from transformers import (
     DataCollatorForTokenClassification,
 )
 
-# seqeval https://github.com/chakki-works/seqeval
+# seqeval https://github.com/chakki-works/seqeval，
+# sequence labeling evaluation.
+# entity-level. for BIO/BILOU (exact span match and entity type match)
 from seqeval.metrics import precision_score, recall_score, f1_score
 
 # helpers
