@@ -255,6 +255,9 @@ python -m pipelines.run_query_sqlite --mode normalized_id --normalized_id HGNC:1
 python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Gene --keyword brca
 ```
 
+Query output contract:
+- JSON payload with `mode`, `filters`, `count`, `results`
+
 ## Module Smoke Checks (Old-school)
 
 Run each core module directly:
