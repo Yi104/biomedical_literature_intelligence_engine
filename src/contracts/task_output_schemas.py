@@ -26,3 +26,18 @@ COMMON_ENTITIES_COLUMNS_V2: list[str] = [
     "normalized_source",
     "normalized_score",
 ]
+
+# BioRED is the primary planned evidence task because it represents both
+# entities and document-level biomedical relations, including gene-disease.
+BIORED_RELATIONS_COLUMNS_V1: list[str] = [
+    "pmid",
+    "relation_type",
+    "entity1_text",
+    "entity1_type",
+    "entity1_normalized_id",
+    "entity2_text",
+    "entity2_type",
+    "entity2_normalized_id",
+    "evidence_sentence",
+    "relation_source",
+]

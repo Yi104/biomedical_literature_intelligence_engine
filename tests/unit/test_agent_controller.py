@@ -14,7 +14,7 @@ def _one_paper_and_entity(pmid: str = "P100"):
                 "title": "Evidence paper",
                 "year": "2024",
                 "journal": "Journal",
-                "abstract": "BRCA1 is associated with breast cancer.",
+                "abstract": "Cisplatin is associated with kidney diseases.",
             }
         ]
     )
@@ -22,12 +22,12 @@ def _one_paper_and_entity(pmid: str = "P100"):
         [
             {
                 "pmid": pmid,
-                "entity_type": "Gene",
-                "entity_text": "BRCA1",
+                "entity_type": "Chemical",
+                "entity_text": "Cisplatin",
                 "token_start": 0,
                 "token_end": 0,
-                "normalized_id": "HGNC:1100",
-                "normalized_text": "BRCA1",
+                "normalized_id": "CHEBI:27899",
+                "normalized_text": "cisplatin",
                 "normalized_source": "rule_alias_v1",
                 "normalized_score": 1.0,
             }
@@ -47,7 +47,7 @@ def test_read_only_request_returns_existing_evidence_without_refresh(tmp_path):
     result = run_agent_controller(
         task="bc5cdr",
         retrieval_mode="normalized_id",
-        normalized_id="HGNC:1100",
+        normalized_id="CHEBI:27899",
         allow_refresh=False,
         db_path=db_path,
         refresh_runner=should_not_refresh,
@@ -64,7 +64,7 @@ def test_read_only_request_reports_insufficient_evidence(tmp_path):
     result = run_agent_controller(
         task="bc5cdr",
         retrieval_mode="normalized_id",
-        normalized_id="HGNC:missing",
+        normalized_id="CHEBI:missing",
         allow_refresh=False,
         db_path=str(tmp_path / "agent_empty.db"),
     )
@@ -79,7 +79,7 @@ def test_explicit_refresh_writes_outputs_and_returns_follow_up_evidence(tmp_path
 
     def fake_refresh(task, **kwargs):
         assert task == "bc5cdr"
-        assert kwargs["search_query"] == "BRCA1 breast cancer"
+        assert kwargs["search_query"] == "cisplatin kidney diseases"
         assert kwargs["smoke"] is False
         return _one_paper_and_entity(pmid="P200")
 
@@ -87,7 +87,7 @@ def test_explicit_refresh_writes_outputs_and_returns_follow_up_evidence(tmp_path
         task="bc5cdr",
         retrieval_mode="pmid",
         pmid="P200",
-        search_query="BRCA1 breast cancer",
+        search_query="cisplatin kidney diseases",
         allow_refresh=True,
         db_path=db_path,
         refresh_runner=fake_refresh,
@@ -96,9 +96,9 @@ def test_explicit_refresh_writes_outputs_and_returns_follow_up_evidence(tmp_path
     assert result["status"] == "refreshed_and_found"
     assert result["refreshed"] is True
     assert result["count"] == 1
-    assert result["evidence"][0]["normalized_id"] == "HGNC:1100"
+    assert result["evidence"][0]["normalized_id"] == "CHEBI:27899"
     assert result["refresh"] == {
-        "search_query": "BRCA1 breast cancer",
+        "search_query": "cisplatin kidney diseases",
         "papers_added": 1,
         "mentions_added": 1,
         "normalized_entities_added": 1,
@@ -132,7 +132,7 @@ def test_bc5cdr_smoke_refresh_runs_through_l5_controller(tmp_path):
         task="bc5cdr",
         retrieval_mode="evidence_pmid",
         pmid="SMOKE001",
-        search_query="BRCA1 breast cancer",
+        search_query="cisplatin kidney diseases",
         allow_refresh=True,
         smoke=True,
         db_path=str(tmp_path / "agent_smoke.db"),
@@ -141,10 +141,10 @@ def test_bc5cdr_smoke_refresh_runs_through_l5_controller(tmp_path):
     assert result["status"] == "refreshed_and_found"
     assert result["count"] == 1
     assert result["evidence"][0]["sentence_text"] == (
-        "BRCA1 is associated with breast cancer."
+        "Cisplatin is associated with kidney diseases."
     )
     assert {item["entity_type"] for item in result["evidence"][0]["entities"]} == {
-        "Gene",
+        "Chemical",
         "Disease",
     }
     assert result["refresh"]["evidence_sentences_added"] == 1

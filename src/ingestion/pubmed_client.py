@@ -111,7 +111,7 @@ def fetch_pubmed_details(pmids: List[str]) -> List[PubMedRecord]:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PubMed ingestion smoke check.")
-    parser.add_argument("--query", type=str, default="BRCA1 breast cancer")
+    parser.add_argument("--query", type=str, default="cisplatin kidney diseases")
     parser.add_argument("--retmax", type=int, default=3)
     parser.add_argument("--year_from", type=int, default=None)
     parser.add_argument("--year_to", type=int, default=None)

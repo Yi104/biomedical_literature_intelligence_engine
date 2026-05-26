@@ -68,10 +68,10 @@ Examples:
 
 ```bash
 python -m pipelines.run_query_sqlite --mode pmid --pmid SMOKE001
-python -m pipelines.run_query_sqlite --mode normalized_id --normalized_id HGNC:1100
-python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Gene --keyword brca
+python -m pipelines.run_query_sqlite --mode normalized_id --normalized_id CHEBI:27899
+python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Chemical --keyword cisplatin
 python -m pipelines.run_query_sqlite --mode evidence_pmid --pmid SMOKE001 --task bc5cdr
-python -m pipelines.run_query_sqlite --mode evidence_normalized_id --normalized_id HGNC:1100 --task bc5cdr
+python -m pipelines.run_query_sqlite --mode evidence_normalized_id --normalized_id CHEBI:27899 --task bc5cdr
 ```
 
 ## Validation
@@ -100,9 +100,9 @@ mention-level query modes. Evidence queries return:
 {
     "pmid": "SMOKE001",
     "task": "bc5cdr",
-    "sentence_text": "BRCA1 is associated with breast cancer.",
+    "sentence_text": "Cisplatin is associated with kidney diseases.",
     "entities": [
-        {"entity_text": "BRCA1", "normalized_id": "HGNC:1100"}
+        {"entity_text": "Cisplatin", "normalized_id": "CHEBI:27899"}
     ]
 }
 ```

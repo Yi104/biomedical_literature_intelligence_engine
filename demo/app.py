@@ -13,7 +13,7 @@ from src.extraction.ner_infer import get_label_mapping
 
 st.title("PubMed Biomarker Search + NER")
 model_path = st.text_input("Model checkpoint path", "outputs/best_model")
-query = st.text_input("Search keyword (gene or disease)", "BRCA1 breast cancer")
+query = st.text_input("Search keyword (chemical or disease)", "cisplatin kidney diseases")
 retmax = st.slider("Number of papers", min_value=5, max_value=100, value=20, step=5)
 max_length = st.slider("NER max token length", min_value=64, max_value=512, value=256, step=32)
 col1, col2 = st.columns(2)
@@ -70,6 +70,7 @@ if st.button("Search and Extract"):
                 year_from=int(year_from),
                 year_to=int(year_to),
                 journal=journal_filter.strip() or None,
+                expected_entity_types={"Chemical", "Disease"},
             )
 
         if len(entities_df) > 0:

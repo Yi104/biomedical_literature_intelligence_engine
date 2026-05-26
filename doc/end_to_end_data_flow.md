@@ -6,7 +6,7 @@ returning to the project after a break.
 
 ## Scope
 
-The current implemented path covers:
+The existing implemented storage/retrieval path covers:
 
 ```text
 external normalization sources
@@ -22,6 +22,14 @@ external normalization sources
 Sentence-level citation evidence is now stored and retrievable. LLM-generated
 summaries remain a planned extension, not a current system output.
 
+Primary-task transition:
+
+| Path | Role | Current status |
+| --- | --- | --- |
+| `BioRED` | Primary gene/protein-disease relation evidence | Three-table smoke contract only; relation persistence next |
+| `BC5CDR` | Chemical-disease evidence baseline | Implemented through L5 sentence evidence |
+| `JNLPBA` | Molecular entity-discovery auxiliary path | Retained |
+
 ## 1. Data Categories
 
 These types of data serve different purposes and should not be confused with
@@ -32,9 +40,9 @@ each other.
 | Raw normalization source | HGNC complete set, MeSH XML, ChEBI TSV files | Official vocabulary input used to construct alias mappings | `data/raw/normalization/` |
 | Processed mapping data | `gene_aliases.csv`, `disease_aliases.csv`, `chemical_aliases.csv` | Resolve extracted surface text to a canonical identifier and preferred label | `data/processed/normalization/` |
 | Retrieved paper data | PMID, title, abstract from PubMed | Text input for extraction and source provenance for evidence | Runtime DataFrame, then SQLite `papers` |
-| Extracted mention data | `BRCA1`, `breast cancer`, token offsets | Model output before/after normalization | Runtime DataFrame, then SQLite `entity_mentions` |
-| Canonical entity data | `HGNC:1100`, `MESH:D001943` | Reusable normalized entity identities | SQLite `normalized_entities` |
-| Sentence evidence data | `BRCA1 is associated with breast cancer.` | Citation-ready source text linked to normalized mentions | SQLite `evidence_sentences` + `evidence_sentence_mentions` |
+| Extracted mention data | `Cisplatin`, `kidney diseases`, token offsets | BC5CDR model output before/after normalization | Runtime DataFrame, then SQLite `entity_mentions` |
+| Canonical entity data | `CHEBI:27899`, `MESH:D007674` | Reusable normalized entity identities | SQLite `normalized_entities` |
+| Sentence evidence data | `Cisplatin is associated with kidney diseases.` | Citation-ready source text linked to normalized mentions | SQLite `evidence_sentences` + `evidence_sentence_mentions` |
 | L5 controller response | `status`, `filters`, `evidence`, `refresh` | Structured output for UI or future L6 summarization | Returned JSON payload; not separately persisted |
 
 ## 2. Normalization Mapping Preparation
@@ -75,12 +83,12 @@ flowchart TD
 
 ## 3. Extraction, Normalization, and SQLite Ingestion
 
-This is the data-production path used when a new PubMed search is run and the
-results are written into the knowledge base.
+This diagram is the currently implemented entity/sentence ingestion path,
+validated with the BC5CDR baseline and retained for reuse by BioRED.
 
 ```mermaid
 flowchart TD
-    A["Search query<br/>e.g. BRCA1 breast cancer"] --> B["L0 PubMed ingestion<br/>src/ingestion/pubmed_client.py"]
+    A["Search query<br/>e.g. cisplatin kidney diseases"] --> B["L0 PubMed ingestion<br/>src/ingestion/pubmed_client.py"]
     B --> C["Paper records<br/>PMID + title + abstract + metadata"]
     C --> D{"Task selection"}
     D -->|bc5cdr| E["L1 BC5CDR pipeline<br/>src/extraction/bc5cdr_pipeline.py"]
@@ -114,10 +122,10 @@ flowchart TD
 | SQLite table | What it stores | Example |
 | --- | --- | --- |
 | `papers` | PubMed source records | `SMOKE001`, title, abstract |
-| `entity_mentions` | Mentions tied to a PMID, including normalization result | `BRCA1 -> HGNC:1100` in `SMOKE001` |
-| `normalized_entities` | Distinct resolved canonical entities | `HGNC:1100`, `BRCA1`, `Gene` |
-| `evidence_sentences` | Source abstract sentences with task provenance | `BRCA1 is associated with breast cancer.` |
-| `evidence_sentence_mentions` | Links source sentences to extracted mentions | Evidence sentence linked to `BRCA1` and `breast cancer` |
+| `entity_mentions` | Mentions tied to a PMID, including normalization result | `Cisplatin -> CHEBI:27899` in `SMOKE001` |
+| `normalized_entities` | Distinct resolved canonical entities | `CHEBI:27899`, `cisplatin`, `Chemical` |
+| `evidence_sentences` | Source abstract sentences with task provenance | `Cisplatin is associated with kidney diseases.` |
+| `evidence_sentence_mentions` | Links source sentences to extracted mentions | Evidence sentence linked to `Cisplatin` and `kidney diseases` |
 
 Sentence links currently use surface-text occurrence because extraction output
 does not yet preserve exact source character offsets. Character-offset linking
@@ -160,7 +168,7 @@ Read-only example input:
 {
     "task": "bc5cdr",
     "retrieval_mode": "normalized_id",
-    "normalized_id": "HGNC:1100",
+    "normalized_id": "CHEBI:27899",
     "allow_refresh": False
 }
 ```
@@ -172,7 +180,7 @@ Explicit-refresh example input:
     "task": "bc5cdr",
     "retrieval_mode": "evidence_pmid",
     "pmid": "SMOKE001",
-    "search_query": "BRCA1 breast cancer",
+    "search_query": "cisplatin kidney diseases",
     "allow_refresh": True
 }
 ```
@@ -186,13 +194,18 @@ Current response shape:
     "retrieval_mode": "evidence_pmid",
     "filters": {"pmid": "SMOKE001"},
     "refreshed": True,
-    "count": 2,
+    "count": 1,
     "evidence": [
-        {"entity_text": "BRCA1", "normalized_id": "HGNC:1100"},
-        {"entity_text": "breast cancer", "normalized_id": "MESH:D001943"}
+        {
+            "sentence_text": "Cisplatin is associated with kidney diseases.",
+            "entities": [
+                {"entity_text": "Cisplatin", "normalized_id": "CHEBI:27899"},
+                {"entity_text": "kidney diseases", "normalized_id": "MESH:D007674"}
+            ]
+        }
     ],
     "refresh": {
-        "search_query": "BRCA1 breast cancer",
+        "search_query": "cisplatin kidney diseases",
         "papers_added": 1,
         "mentions_added": 2,
         "normalized_entities_added": 2,
@@ -234,7 +247,31 @@ flowchart TD
 | Citation-ready evidence sentences | Yes, source sentences linked to mentions | Improve sentence segmentation/link precision |
 | LLM answer generation | Router skeleton only | Consume evidence bundle after citation data is available |
 
-## 6. File Map
+## 6. BioRED Primary Relation Extension
+
+BioRED introduces an additional relation artifact that is absent from the
+current BC5CDR/JNLPBA two-table contract:
+
+```mermaid
+flowchart TD
+    A["BioRED document"] --> B["entities_df<br/>Gene/Protein + Disease"]
+    A --> C["relations_df<br/>Disease-Gene relation"]
+    B --> D["Normalization + sentence evidence"]
+    C --> E["Next: relation persistence"]
+    D --> E
+    E --> F["Next: L4/L5 gene-disease evidence query"]
+```
+
+Current BioRED smoke contract:
+
+```text
+papers_df + entities_df + relations_df
+```
+
+It is defined in `src/extraction/biored_pipeline.py`. Relation persistence and
+L5 BioRED routing are intentionally not claimed as complete yet.
+
+## 7. File Map
 
 | Data-flow responsibility | File |
 | --- | --- |
@@ -242,6 +279,7 @@ flowchart TD
 | Retrieve PubMed records | `src/ingestion/pubmed_client.py` |
 | Run BC5CDR task path | `src/extraction/bc5cdr_pipeline.py` |
 | Run JNLPBA task path | `src/extraction/jnlpba_pipeline.py` |
+| Define BioRED primary task smoke contract | `src/extraction/biored_pipeline.py` |
 | Normalize extracted mentions | `src/normalization/rule_based.py` |
 | Create SQLite tables | `src/kb/schema.py` |
 | Split abstracts and link sentence evidence | `src/kb/evidence.py` |
@@ -250,8 +288,15 @@ flowchart TD
 | Orchestrate read-only or refresh evidence paths | `src/agent/controller.py` |
 | Run L5 from the command line | `pipelines/run_agent_query.py` |
 | Explain the L3-L5 evidence upgrade | `doc/sentence_level_evidence_upgrade.md` |
+| Explain the BioRED primary-task transition | `doc/biored_primary_task_transition.md` |
 
-## 7. Useful Commands
+## 8. Useful Commands
+
+Inspect the BioRED primary task three-table contract:
+
+```bash
+python -m pipelines.run_extract_biored --smoke
+```
 
 Build normalization mappings after raw official files have been downloaded:
 
@@ -262,11 +307,11 @@ python -m pipelines.build_normalization_mappings
 Run an L5 local smoke refresh and evidence query:
 
 ```bash
-python -m pipelines.run_agent_query --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --query "BRCA1 breast cancer" --allow_refresh --smoke
+python -m pipelines.run_agent_query --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --query "cisplatin kidney diseases" --allow_refresh --smoke
 ```
 
 Query existing normalized evidence without modifying the KB:
 
 ```bash
-python -m pipelines.run_agent_query --task bc5cdr --mode normalized_id --normalized_id HGNC:1100
+python -m pipelines.run_agent_query --task bc5cdr --mode normalized_id --normalized_id CHEBI:27899
 ```

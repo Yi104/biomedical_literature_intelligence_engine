@@ -58,6 +58,23 @@ The SQLite knowledge base is stored by default at:
 data/processed/kb/biomed_kb.db
 ```
 
+## BioRED Primary Task Boundary
+
+`BioRED` is now the intended primary task for gene/protein-disease relation
+evidence. The current L5 controller remains wired only to the existing
+entity/sentence persistence paths (`bc5cdr`, `jnlpba`) because BioRED needs a
+third `relations_df` artifact and a relation table before its evidence can be
+queried honestly.
+
+Current BioRED preparation:
+
+- `src/extraction/biored_pipeline.py` provides a smoke-only three-table contract.
+- `doc/biored_primary_task_transition.md` records the migration rationale.
+
+Next L5 extension:
+
+- add BioRED routing only after relation persistence and retrieval are implemented.
+
 ## Version 1 Request Contract
 
 The controller should begin with explicit request parameters instead of
@@ -69,7 +86,7 @@ Example: retrieve existing evidence by normalized entity ID.
 {
     "task": "bc5cdr",
     "retrieval_mode": "normalized_id",
-    "normalized_id": "HGNC:1100",
+    "normalized_id": "CHEBI:27899",
     "allow_refresh": False
 }
 ```
@@ -80,7 +97,7 @@ explicitly requests it.
 ```python
 {
     "task": "bc5cdr",
-    "search_query": "BRCA1 breast cancer",
+    "search_query": "cisplatin kidney diseases",
     "retmax": 5,
     "allow_refresh": True
 }
@@ -141,7 +158,7 @@ L5 should provide one stable structure for downstream UI and L6 consumers:
     "status": "evidence_found",
     "task": "bc5cdr",
     "retrieval_mode": "normalized_id",
-    "filters": {"normalized_id": "HGNC:1100"},
+    "filters": {"normalized_id": "CHEBI:27899"},
     "refreshed": False,
     "count": 1,
     "evidence": [],
@@ -170,7 +187,7 @@ the row counts added to SQLite.
 The first L5 v1 milestone was mention-oriented. It supported queries such as:
 
 ```text
-PMID -> BRCA1 -> HGNC:1100
+PMID -> Cisplatin -> CHEBI:27899
 ```
 
 It did not yet provide a stable sentence-level evidence record such as:
@@ -200,7 +217,7 @@ Example request:
     "task": "bc5cdr",
     "retrieval_mode": "evidence_pmid",
     "pmid": "SMOKE001",
-    "search_query": "BRCA1 breast cancer",
+    "search_query": "cisplatin kidney diseases",
     "allow_refresh": True
 }
 ```
@@ -210,10 +227,10 @@ Example `evidence` content:
 ```python
 [
     {
-        "sentence_text": "BRCA1 is associated with breast cancer.",
+        "sentence_text": "Cisplatin is associated with kidney diseases.",
         "entities": [
-            {"entity_text": "BRCA1", "normalized_id": "HGNC:1100"},
-            {"entity_text": "breast cancer", "normalized_id": "MESH:D001943"}
+            {"entity_text": "Cisplatin", "normalized_id": "CHEBI:27899"},
+            {"entity_text": "kidney diseases", "normalized_id": "MESH:D007674"}
         ]
     }
 ]
@@ -293,7 +310,7 @@ In v1, the caller must already know whether to query by `pmid`,
 In v2, L5 may accept a question such as:
 
 ```text
-What papers mention BRCA1 in breast cancer?
+What papers mention cisplatin in kidney diseases?
 ```
 
 and produce a validated internal plan:
@@ -305,8 +322,8 @@ and produce a validated internal plan:
         {
             "tool": "query_kb",
             "mode": "type_keyword",
-            "entity_type": "Gene",
-            "keyword": "BRCA1"
+            "entity_type": "Chemical",
+            "keyword": "cisplatin"
         },
         {
             "tool": "query_evidence_sentences",
@@ -330,10 +347,10 @@ The current evidence item shape is designed for content such as:
 ```python
 {
     "pmid": "12345678",
-    "sentence_text": "BRCA1 mutations were observed in breast cancer cases.",
+    "sentence_text": "Cisplatin exposure was reported in kidney disease cases.",
     "entities": [
-        {"text": "BRCA1", "normalized_id": "HGNC:1100"},
-        {"text": "breast cancer", "normalized_id": "MESH:D001943"}
+        {"text": "Cisplatin", "normalized_id": "CHEBI:27899"},
+        {"text": "kidney diseases", "normalized_id": "MESH:D007674"}
     ],
     "source": "pubmed_abstract"
 }

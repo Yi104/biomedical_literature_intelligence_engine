@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.contracts.task_output_schemas import (
+    BIORED_RELATIONS_COLUMNS_V1,
     COMMON_ENTITIES_COLUMNS_V1,
     COMMON_ENTITIES_COLUMNS_V2,
     COMMON_PAPERS_COLUMNS_V1,
@@ -23,6 +24,11 @@ SCHEMA_REGISTRY: dict[str, dict[str, list[str]]] = {
     "jnlpba:v2": {
         "papers_columns": COMMON_PAPERS_COLUMNS_V1,
         "entities_columns": COMMON_ENTITIES_COLUMNS_V2,
+    },
+    "biored:v1": {
+        "papers_columns": COMMON_PAPERS_COLUMNS_V1,
+        "entities_columns": COMMON_ENTITIES_COLUMNS_V2,
+        "relations_columns": BIORED_RELATIONS_COLUMNS_V1,
     },
 }
 

@@ -8,7 +8,7 @@ from src.extraction.jnlpba_pipeline import run_jnlpba_pipeline
 @pytest.mark.parametrize(
     "schema_key,runner,query",
     [
-        ("bc5cdr:v2", run_bc5cdr_pipeline, "BRCA1 breast cancer"),
+        ("bc5cdr:v2", run_bc5cdr_pipeline, "cisplatin kidney diseases"),
         ("jnlpba:v2", run_jnlpba_pipeline, "IL-2 gene expression"),
     ],
 )

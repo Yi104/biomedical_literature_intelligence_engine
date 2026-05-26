@@ -2,10 +2,12 @@
 
 ## 1. Objective
 
-Build a production-style biomedical literature intelligence platform with two common task lines:
+Build a production-style biomedical literature intelligence platform with one
+primary evidence task and retained supporting task lines:
 
-- Task A: gene-disease evidence extraction and citation-grounded analysis
-- Task B: biomedical entity discovery for broader gene/protein/DNA/RNA/cell-line exploration
+- Primary Task A: gene/protein-disease citation-grounded evidence with `BioRED`
+- Baseline Task B: chemical-disease evidence extraction with `BC5CDR`
+- Auxiliary Task C: biomedical entity discovery with `JNLPBA`
 
 The platform converts unstructured PubMed abstracts into structured, queryable evidence and supports LLM-assisted querying with strict citation grounding.
 
@@ -14,6 +16,7 @@ Quick visual map:
 - [System Architecture Diagram](system_architecture_diagram.md)
 - [End-to-End Data Flow](end_to_end_data_flow.md): implemented mapping, ingestion, SQLite, and L5 evidence paths
 - [Sentence-Level Evidence Upgrade](sentence_level_evidence_upgrade.md): L3-L5 v1.1 source-sentence persistence and retrieval
+- [BioRED Primary Task Transition](biored_primary_task_transition.md): why gene-disease work moves to BioRED
 
 Core constraints:
 
@@ -24,8 +27,9 @@ Core constraints:
 
 Task separation:
 
-- `BC5CDR` is the main dataset for gene-disease evidence work
-- `JNLPBA` is the broader entity-discovery dataset
+- `BioRED` is the target dataset for gene/protein-disease relations and is not yet live-wired in this repository
+- `BC5CDR` labels chemicals and diseases; it remains an implemented evidence baseline, not the primary gene-disease task
+- `JNLPBA` remains an implemented broader entity-discovery auxiliary dataset
 - The platform shares ingestion, retrieval, KB, and UI layers, but keeps task-specific label spaces and outputs separate
 
 ## 2. Layered Architecture
@@ -34,7 +38,7 @@ Task separation:
 
 Responsibilities:
 
-- Query PubMed (gene/disease/filters)
+- Query PubMed (gene/disease/filters for the primary BioRED path; chemical/disease for BC5CDR baseline)
 - Fetch PMID metadata + abstracts
 - Deduplicate by PMID
 - Store ingestion provenance (query, timestamp, source)
@@ -65,7 +69,8 @@ Outputs:
 
 Task-specific models:
 
-- `BC5CDR` model: gene/disease/chemical evidence extraction
+- `BioRED` target: gene/protein, disease, and relation-aware evidence extraction
+- `BC5CDR` model: chemical/disease evidence extraction
 - `JNLPBA` model: broader biomedical entity discovery
 
 ### L2. Normalization Layer
@@ -87,7 +92,8 @@ Outputs:
 
 Task-specific normalization:
 
-- For `BC5CDR`, normalize gene and disease mentions for evidence tuples
+- For `BioRED`, normalize gene/protein and disease entities for relation evidence
+- For `BC5CDR`, normalize chemical and disease mentions for evidence tuples
 - For `JNLPBA`, normalize broader bio-entity mentions for KB expansion
 
 Normalization mapping files (local contracts):
@@ -165,7 +171,7 @@ Shared KB principle:
 
 Structured retrieval:
 
-- SQL retrieval over evidence tables (`gene_disease_evidence`, `papers`, `entities`)
+- SQL retrieval over evidence tables (`evidence_sentences`, `papers`, `entity_mentions`)
 
 Optional semantic retrieval:
 
@@ -177,14 +183,15 @@ Output:
 
 Task outputs:
 
-- Evidence mode: structured gene-disease evidence packets
+- Primary evidence mode: structured gene/protein-disease relation evidence packets from BioRED
+- Baseline evidence mode: structured chemical-disease evidence packets from BC5CDR
 - Discovery mode: broader entity mention summaries and export tables
 
 ### L5. Agent Layer (Tool-Calling Orchestration)
 
 Responsibilities:
 
-- Parse user query intent and slots (`gene`, `disease`, filters)
+- Parse user query intent and slots (`chemical`, `disease`, filters) for the current evidence path
 - Decide whether KB-only retrieval is sufficient
 - Trigger PubMed refresh path when evidence coverage is low
 
@@ -231,7 +238,7 @@ Formats:
 
 Task-specific outputs:
 
-- `BC5CDR`: gene, disease, PMID, evidence sentence, evidence type
+- `BC5CDR`: chemical, disease, PMID, evidence sentence, evidence type
 - `JNLPBA`: entity type, mention text, PMID, sentence, optional canonical ID
 
 ## 3. Database Schema
@@ -364,7 +371,7 @@ Returns mention records:
 
 Task split:
 
-- `run_ner_bc5cdr(...)` returns gene/disease/chemical evidence mentions
+- `run_ner_bc5cdr(...)` returns chemical/disease evidence mentions
 - `run_ner_jnlpba(...)` returns broader bio-entity mentions
 
 ### `update_kb(papers, mentions) -> dict`
@@ -375,13 +382,16 @@ Returns ingestion summary:
 
 - `papers_upserted`, `mentions_upserted`, `evidence_upserted`
 
-### `query_kb(gene, disease, limit=20, min_score=0.0) -> list[dict]`
+### Current baseline: `query_kb(chemical, disease, limit=20, min_score=0.0) -> list[dict]`
 
 Returns grounded evidence packets:
 
 - `pmid`, `title`, `pub_year`, `journal`, `evidence_sentence`, `evidence_type`, `directionality`, `association_score`
 
-### `get_evidence_sentences(gene, disease, top_k=10, mode="structured") -> list[dict]`
+For the BioRED primary path, this API must be extended to accept
+`gene/protein` + `disease` relation filters after relation persistence exists.
+
+### `get_evidence_sentences(chemical, disease, top_k=10, mode="structured") -> list[dict]`
 
 Returns ranked sentence evidence for summarization and display.
 
@@ -391,7 +401,8 @@ Lightweight deterministic controller (no RL).
 
 Decision flow:
 
-1. Parse query into slots (`gene`, `disease`, optional filters).
+1. Parse query into slots (`gene/protein`, `disease`, optional filters for the
+   BioRED primary target; `chemical`, `disease` for the current BC5CDR baseline).
 2. Run `query_kb(...)`.
 3. If evidence count meets threshold, continue to summarization.
 4. If evidence is insufficient:
@@ -405,8 +416,10 @@ Decision flow:
 
 Mode routing:
 
-- `evidence` mode routes to the `BC5CDR` workflow
-- `discovery` mode routes to the `JNLPBA` workflow
+- Primary gene-disease `evidence` mode will route to `BioRED` after relation
+  persistence and retrieval are implemented.
+- Current chemical-disease evidence mode routes to the retained `BC5CDR` workflow.
+- Current discovery mode routes to the retained `JNLPBA` workflow.
 
 ## 6. Citation Enforcement Strategy
 
@@ -452,6 +465,7 @@ repo/
       ingest_pipeline.py
     extraction/
       ner_infer.py
+      biored_pipeline.py
       bc5cdr_pipeline.py
       jnlpba_pipeline.py
       sentence_split.py
@@ -478,6 +492,7 @@ repo/
       dto.py
   pipelines/
     run_ingest.py
+    run_extract_biored.py
     run_extract_bc5cdr.py
     run_extract_jnlpba.py
     run_backfill.py
@@ -503,22 +518,37 @@ repo/
 
 ## 8. Task Definitions
 
-### Task A: Gene-Disease Evidence
+### Primary Task A: Gene-Disease Evidence (BioRED, Scaffolded)
 
 Goal:
 
-- Answer whether a gene is associated with a disease
-- Produce grounded evidence tuples with PMIDs and supporting sentences
+- Retrieve gene/protein and disease mentions from PubMed documents
+- Persist relation evidence with PMIDs and selected supporting sentences
 
 Primary dataset:
 
-- `BC5CDR`
+- `BioRED`
 
 Primary outputs:
 
-- `gene`, `disease`, `PMID`, `evidence sentence`, `evidence type`, `directionality`
+- `gene/protein`, `disease`, `relation type`, `PMID`, `evidence sentence`, `relation source`
 
-### Task B: Biomedical Entity Discovery
+Boundary:
+
+- A three-table smoke contract exists (`papers`, `entities`, `relations`).
+- Live BioRED loading, relation persistence, and relation retrieval are not yet implemented.
+
+### Baseline Task B: Chemical-Disease Evidence (BC5CDR, Implemented)
+
+Goal:
+
+- Preserve the completed chemical-disease sentence-evidence pipeline as a baseline.
+
+Boundary:
+
+- `BC5CDR` does not train or evaluate gene extraction.
+
+### Auxiliary Task C: Biomedical Entity Discovery (JNLPBA, Retained)
 
 Goal:
 
@@ -580,11 +610,11 @@ Status legend:
 | Layer | Status | Current Evidence in Repo | Gap to Close |
 |---|---|---|---|
 | L0 Data (PubMed ingestion) | `PARTIAL` | `src/ingestion/pubmed_client.py` supports PubMed search + abstract fetch + year/journal filters | No persistent ingestion log, no dedup/versioning pipeline, no ingestion provenance stored in DB |
-| L1 Extraction (BioBERT NER) | `DONE` | `src/extraction/ner_infer.py` performs token inference, label mapping, entity span aggregation | No batch inference service interface yet |
+| L1 Extraction (BioBERT NER) | `PARTIAL` | `src/extraction/ner_infer.py` performs token inference for retained entity baselines; `src/extraction/biored_pipeline.py` defines the primary three-table smoke contract | Implement live BioRED entity/relation loading or extraction |
 | L2 Normalization | `DONE` | `src/normalization/rule_based.py` loads local HGNC/MeSH/ChEBI alias CSVs, maps IDs/labels, and exposes confidence/source fields | Improve ambiguous-alias handling and version mapping snapshots |
-| L3 Knowledge Base (SQLite) | `DONE` | `src/kb/schema.py`, `writer.py`, and `query.py` persist normalized mentions plus linked `evidence_sentences` source text | Add migration/version tracking, ingestion provenance, and character-offset sentence links |
-| L4 Retrieval | `DONE` | `src/retrieval/sqlite_service.py` exposes mention lookup plus `evidence_pmid` and `evidence_normalized_id` sentence modes; CLI/tests exist | Add pagination and transparent ranking |
-| L5 Agent | `DONE` | `src/agent/controller.py` executes deterministic read-only or explicit-refresh flows and can return sentence-level evidence bundles | Add validated multi-step planning and decision traces after provenance metadata exists |
+| L3 Knowledge Base (SQLite) | `PARTIAL` | `src/kb/schema.py`, `writer.py`, and `query.py` persist normalized mentions plus linked sentence evidence for the retained paths | Add BioRED relation storage and provenance before claiming primary-task KB support |
+| L4 Retrieval | `PARTIAL` | `src/retrieval/sqlite_service.py` exposes mention lookup plus sentence evidence modes for retained paths; CLI/tests exist | Add BioRED gene-disease relation retrieval |
+| L5 Agent | `PARTIAL` | `src/agent/controller.py` executes deterministic read/refresh flows for persisted BC5CDR/JNLPBA data | Route BioRED only after relation persistence/retrieval exist |
 | L6 LLM constrained summarization | `PARTIAL` | `src/llm/router.py` provides provider routing (`none/ollama/openai/anthropic/gemini`) with evidence-only fallback | Need full BYO provider clients, citation-level post-validation, and prompt/version governance |
 | L7 Output layer | `PARTIAL` | `demo/app.py` table display + CSV export | No API JSON contract, no claim-level citation object |
 
@@ -597,17 +627,18 @@ Status legend:
 | `update_kb(...)` | Required | `DONE` | `src/kb/writer.py::write_pipeline_outputs_to_sqlite`; `pipelines/run_ingest_to_sqlite.py` |
 | `query_kb(...)` | Required | `DONE` | `src/retrieval/sqlite_service.py::query_kb`; `pipelines/run_query_sqlite.py` |
 | `get_evidence_sentences(...)` | Required | `DONE` | `src/kb/query.py::get_evidence_sentences_by_pmid`, `get_evidence_sentences_by_normalized_id`; exposed via L4 evidence modes |
+| `get_gene_disease_relations(...)` | Primary BioRED task | `NOT STARTED` | Requires relation table, writer, and retrieval service additions |
 
 ### 11.3 Repo Structure Status
 
 | Planned Module | Status |
 |---|---|
 | `src/ingestion/` | `PARTIAL` |
-| `src/extraction/` | `DONE` |
+| `src/extraction/` | `PARTIAL` |
 | `src/normalization/` | `DONE` |
-| `src/kb/` | `DONE` |
-| `src/retrieval/` | `DONE` |
-| `src/agent/` | `DONE` |
+| `src/kb/` | `PARTIAL` |
+| `src/retrieval/` | `PARTIAL` |
+| `src/agent/` | `PARTIAL` |
 | `src/llm/` | `PARTIAL` |
 | `pipelines/` | `DONE` |
 | `db/` | `NOT STARTED` |
@@ -615,10 +646,10 @@ Status legend:
 
 ### 11.4 Immediate Next Milestones
 
-1. Add ingestion provenance and character-offset evidence linkage for stronger citation traceability.
-2. Stabilize the L7 evidence bundle JSON contract used by the agent and any LLM provider.
-3. Add L5 v2 planning/decision traces after provenance metadata exists.
-4. Wire one real BYO LLM provider only after L5/L7 evidence constraints are testable.
+1. Implement BioRED dataset loading and verify the official entity/relation label mapping.
+2. Add BioRED relation persistence and provenance to SQLite while retaining existing mention/sentence tables.
+3. Add L4/L5 gene-disease relation evidence modes backed by persisted BioRED rows.
+4. Add BioRED regression and end-to-end smoke tests before wiring L6 summarization.
 
 ## 12. Reproducibility and Operations Notes
 

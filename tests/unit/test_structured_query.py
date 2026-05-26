@@ -11,7 +11,7 @@ def test_run_search_ner_pipeline_returns_two_tables(monkeypatch):
             PubMedRecord(
                 pmid="123",
                 title="Paper A",
-                abstract="BRCA1 mutation in breast cancer",
+                abstract="Cisplatin exposure in kidney diseases",
                 journal="J1",
                 year="2021",
             )
@@ -27,7 +27,7 @@ def test_run_search_ner_pipeline_returns_two_tables(monkeypatch):
     )
 
     papers_df, entities_df = sq.run_search_ner_pipeline(
-        query="BRCA1 breast cancer",
+        query="cisplatin kidney diseases",
         model_path="outputs/best_model",
         retmax=1,
     )

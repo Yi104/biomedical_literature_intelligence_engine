@@ -4,7 +4,9 @@ This document is the implementation checklist for adding the SQLite knowledge ba
 
 ## Goal
 
-Persist Task A/B outputs into a local SQLite database so results are queryable and reproducible.
+Persist the currently runnable BC5CDR/JNLPBA outputs into a local SQLite
+database so results are queryable and reproducible. The primary BioRED task
+requires an additional relation table and is described separately below.
 
 ## Phase 1: Minimal Vertical Slice (Original v1 Milestone)
 
@@ -26,7 +28,7 @@ Persist Task A/B outputs into a local SQLite database so results are queryable a
 - by `entity_type` + keyword
 
 5. Add one CLI smoke command.
-- Example target: `python -m pipelines.run_ingest_to_sqlite --task bc5cdr --query "BRCA1 breast cancer" --retmax 5`
+- Example target: `python -m pipelines.run_ingest_to_sqlite --task bc5cdr --query "cisplatin kidney diseases" --retmax 5`
 - Query CLI target: `python -m pipelines.run_query_sqlite --mode pmid --pmid SMOKE001`
 
 ## Schema v1 (Original Minimal Schema)
@@ -117,6 +119,26 @@ Implementation files:
 - `src/kb/schema.py`: new evidence tables and indexes
 - `src/kb/writer.py`: sentence and link persistence
 - `src/kb/query.py`: evidence retrieval by PMID or normalized ID
+
+## BioRED Primary Relation Extension (Next)
+
+`BioRED` is the primary target for gene/protein-disease evidence. Unlike the
+two existing NER paths, it must retain curated or predicted relation records:
+
+```text
+papers_df + entities_df + relations_df
+```
+
+The existing SQLite tables remain useful for normalized mentions and selected
+source sentences. Before BioRED can be exposed through L4/L5, add:
+
+| Addition | Purpose |
+| --- | --- |
+| `entity_relations` table | Persist disease-gene relation pairs and relation source |
+| Relation-to-sentence linkage | Record the application-selected supporting sentence |
+| Relation query helpers | Retrieve gene-disease evidence with PMID provenance |
+
+The current smoke contract is defined in `src/extraction/biored_pipeline.py`.
 
 Current linking decision:
 

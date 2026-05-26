@@ -11,7 +11,7 @@ from src.kb.writer import write_pipeline_outputs_to_sqlite
 def main():
     parser = argparse.ArgumentParser(description="Run task pipeline and ingest results into SQLite.")
     parser.add_argument("--task", choices=["bc5cdr", "jnlpba"], default="bc5cdr")
-    parser.add_argument("--query", type=str, default="BRCA1 breast cancer")
+    parser.add_argument("--query", type=str, default="cisplatin kidney diseases")
     parser.add_argument("--retmax", type=int, default=5)
     parser.add_argument("--max_length", type=int, default=256)
     parser.add_argument("--model_path", type=str, default=None)

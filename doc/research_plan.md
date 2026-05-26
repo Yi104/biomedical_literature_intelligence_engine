@@ -14,6 +14,27 @@ The target output is not a free-text summary. Instead, the system produces struc
 
 These records can then be aggregated from paper-level evidence to gene-level evidence for downstream biomedical interpretation.
 
+### Current Implementation Alignment Note
+
+The selected primary dataset is now `BioRED`, because it includes
+gene/protein, disease, and disease-gene relation annotations. The currently
+implemented evidence baseline uses `BC5CDR`. This corpus is
+annotated for **chemicals**, **diseases**, and chemical-disease relations; it
+does not provide gene entity annotations. Therefore:
+
+- BioRED is the primary path to implement for the research question
+- the implemented BC5CDR path validates chemical-disease extraction and
+  citation-grounded evidence storage
+- BioRED relation ingestion/evaluation remains implementation work
+
+This distinction prevents chemical-disease baseline results from being
+reported as gene-disease extraction performance.
+
+Dataset reference:
+
+- BioRED paper: https://pubmed.ncbi.nlm.nih.gov/35849818/
+- BC5CDR corpus paper: https://pmc.ncbi.nlm.nih.gov/articles/PMC4860626/
+
 ## 2. Research Questions
 
 ### RQ1

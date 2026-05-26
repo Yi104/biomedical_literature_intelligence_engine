@@ -1,27 +1,35 @@
-# PubMed Biomarker Search + NER
+# PubMed Biomedical Evidence Extraction
 
 ## What This App Is For
 
-This project helps you do one workflow:
+The project target is gene-disease evidence extraction with `BioRED`.
+The currently runnable backend baselines are retained while the BioRED
+relation path is implemented:
 
-1. Search PubMed with a gene or disease keyword  
-2. Retrieve paper metadata + abstract  
-3. Run BioBERT NER on each abstract  
-4. Get structured outputs for downstream analysis (table + CSV)
+| Dataset | Role | Status |
+| --- | --- | --- |
+| `BioRED` | Primary gene/protein-disease relation evidence | Smoke contract added; live pipeline pending |
+| `BC5CDR` | Chemical-disease evidence baseline | Runnable through sentence-evidence retrieval |
+| `JNLPBA` | Broader entity-discovery auxiliary path | Retained |
 
-This is useful when you want to quickly build a candidate evidence set for biomarker analysis.
+Shared backend flow:
+
+```text
+PubMed -> extraction -> normalization -> SQLite -> sentence evidence -> L5 controller
+```
 
 ## What You Input
 
-- A keyword query (examples: `BRCA1 breast cancer`, `EGFR lung adenocarcinoma`)
+- A primary-task query (BioRED smoke example: `BRCA1 breast cancer`)
+- A runnable baseline query (BC5CDR example: `cisplatin kidney diseases`)
 - Number of papers to retrieve
 - Year range (`Year from`, `Year to`)
 - Journal filter (optional, exact journal name)
-- Model path (default: `outputs/best_model`)
+- Model path for currently trained task artifacts
 
 ## What You Get
 
-The app returns two tables:
+The current runnable BC5CDR/JNLPBA UI paths return two tables:
 
 1. **Papers table**
    - `pmid`, `title`, `journal`, `year`, `abstract`
@@ -35,6 +43,10 @@ The app returns two tables:
    - `token_start`, `token_end`
 
 Both tables can be downloaded as CSV.
+
+The BioRED primary-task contract adds a third `relations` table for
+gene/protein-disease evidence. That table is available in the smoke contract
+now and will reach the UI after relation persistence and retrieval are added.
 
 ## How to Interpret Labels (`entity_type` vs `label_id`)
 
@@ -55,7 +67,8 @@ For detailed explanation, see [LABEL_GUIDE.md](LABEL_GUIDE.md).
 
 - This app does **retrieval + NER extraction**, not ranking biomarkers by biological validity.
 - It uses abstract text only (not full-text articles).
-- Entity quality depends on your trained model in `outputs/best_model`.
+- BioRED live relation extraction is not implemented yet.
+- BC5CDR entity quality depends on a valid Chemical/Disease model artifact.
 
 ## Quick Start
 
@@ -86,7 +99,7 @@ Open:
 ## How To Use the App (Step-by-Step)
 
 1. In **Model checkpoint path**, keep `outputs/best_model` (or set your own model folder).  
-2. In **Search keyword**, enter gene/disease query.  
+2. In **Search keyword**, enter a chemical/disease query for the BC5CDR model.
 3. Set **Number of papers**.  
 4. Click **Search and Extract**.  
 5. (Optional) Apply entity filters:
@@ -94,18 +107,19 @@ Open:
    - set minimum entities per paper  
 6. Review the two tables and download CSV for analysis.
 
-## Recommended Query Patterns
+## Recommended BC5CDR Query Patterns
 
-- `GENE disease` (e.g., `TP53 ovarian cancer`)
-- `disease biomarker`
-- Add context words: `prognosis`, `diagnosis`, `therapy response`
+- `CHEMICAL disease` (e.g., `cisplatin kidney diseases`)
+- `drug adverse event`
+- Add context words: `toxicity`, `induced`, `treatment`
 
 ## Files and Roles
 
 - `demo/app.py`: Streamlit user interface
 - `src/ingestion/pubmed_client.py`: PubMed search + fetch
-- `src/extraction/bc5cdr_pipeline.py`: Task A wrapper for gene-disease evidence
-- `src/extraction/jnlpba_pipeline.py`: Task B wrapper for biomedical entity discovery
+- `src/extraction/biored_pipeline.py`: primary gene-disease task contract scaffold
+- `src/extraction/bc5cdr_pipeline.py`: retained chemical-disease evidence baseline
+- `src/extraction/jnlpba_pipeline.py`: retained biomedical entity discovery path
 - `src/retrieval/structured_query.py`: shared query-time pipeline (`query -> papers -> ner -> tables`)
 - `src/extraction/ner_infer.py`: model inference and entity aggregation
 - `src/extraction/train_ner.py`: NER training pipeline
@@ -114,6 +128,7 @@ Open:
 - `doc/system_architecture_diagram.md`: quick architecture diagram
 - `doc/end_to_end_data_flow.md`: Mermaid diagrams and tables tracing data from mappings through the L5 evidence bundle
 - `doc/sentence_level_evidence_upgrade.md`: L3-L5 v1.1 upgrade record for citation-ready source sentences
+- `doc/biored_primary_task_transition.md`: primary task migration and BioRED relation contract
 
 ## Troubleshooting
 
@@ -142,6 +157,9 @@ Use Python 3.10/3.11 environment as shown above.
 
 ## Optional: Retrain the NER Model
 
+These commands and artifacts currently cover the retained NER baseline paths.
+The live BioRED relation model/data path is not implemented yet.
+
 ```bash
 python -m pipelines.run_train
 ```
@@ -158,31 +176,49 @@ Config files:
 
 ## Task Entrypoints
 
-Task A, gene-disease evidence:
+Primary Task A, gene-disease relation evidence (`BioRED`):
 
 ```bash
-python -m pipelines.run_extract_bc5cdr --query "BRCA1 breast cancer"
+python -m pipelines.run_extract_biored --smoke
 ```
 
-Local smoke check for Task A:
+Current status:
+- This command establishes the required `papers + entities + relations` output contract.
+- Live BioRED dataset/model ingestion is the next implementation phase.
+- BioRED is not yet connected to `run_agent_query`, because the SQLite
+  relation table is not implemented yet.
+
+Baseline Task B, chemical-disease evidence (`BC5CDR` labels chemicals and diseases, not genes):
+
+```bash
+python -m pipelines.run_extract_bc5cdr --query "cisplatin kidney diseases"
+```
+
+Local smoke check for the BC5CDR baseline:
 
 ```bash
 python -m pipelines.run_extract_bc5cdr --smoke
 ```
 
-Task B, biomedical entity discovery workflow:
+Important BC5CDR boundary:
+- The BC5CDR model must expose BIO labels for `Chemical` and `Disease`.
+- It cannot be used as a gene-disease NER model.
+- A saved model with only generic labels such as `LABEL_0` is rejected during
+  live BC5CDR execution because downstream normalization cannot interpret it.
+
+Auxiliary Task C, biomedical entity discovery workflow:
 
 ```bash
 python -m pipelines.run_extract_jnlpba --query "IL-2 gene expression"
 ```
 
-Local smoke check for Task B:
+Local smoke check for the JNLPBA auxiliary path:
 
 ```bash
 python -m pipelines.run_extract_jnlpba --smoke
 ```
 
-## Baseline Export (Task A)
+## Baseline Export (BC5CDR Chemical-Disease)
 
 Export a fixed BC5CDR baseline snapshot for regression checks:
 
@@ -194,7 +230,7 @@ Generated files:
 - `outputs/reports/baseline_bc5cdr_papers.csv`
 - `outputs/reports/baseline_bc5cdr_entities.csv`
 
-## Baseline Export (Task B)
+## Baseline Export (JNLPBA Auxiliary)
 
 Export a fixed JNLPBA baseline snapshot for regression checks:
 
@@ -253,10 +289,10 @@ Query SQLite KB:
 
 ```bash
 python -m pipelines.run_query_sqlite --mode pmid --pmid SMOKE001
-python -m pipelines.run_query_sqlite --mode normalized_id --normalized_id HGNC:1100
-python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Gene --keyword brca
+python -m pipelines.run_query_sqlite --mode normalized_id --normalized_id CHEBI:27899
+python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Chemical --keyword cisplatin
 python -m pipelines.run_query_sqlite --mode evidence_pmid --pmid SMOKE001 --task bc5cdr
-python -m pipelines.run_query_sqlite --mode evidence_normalized_id --normalized_id HGNC:1100 --task bc5cdr
+python -m pipelines.run_query_sqlite --mode evidence_normalized_id --normalized_id CHEBI:27899 --task bc5cdr
 ```
 
 Query output contract:
@@ -267,22 +303,31 @@ Sentence evidence upgrade note:
   by rerunning the relevant `run_ingest_to_sqlite` command before
   `evidence_pmid` or `evidence_normalized_id` queries return rows.
 
+Live BC5CDR refresh also requires a valid trained model folder. If the model
+is outside this repository, pass it explicitly:
+
+```bash
+python -m pipelines.run_agent_query --task bc5cdr --mode evidence_normalized_id --normalized_id CHEBI:27899 --query "cisplatin kidney diseases" --allow_refresh --model_path /path/to/valid/bc5cdr_model
+```
+
 ## L5 Agent Controller
 
 The L5 v1 controller provides a deterministic evidence workflow over the
-SQLite KB. It does not generate biomedical answers or call an LLM.
+SQLite KB for the currently persisted BC5CDR/JNLPBA paths. It does not
+generate biomedical answers or call an LLM. BioRED will be wired here after
+relation storage and retrieval are implemented.
 
 Read existing KB evidence only:
 
 ```bash
-python -m pipelines.run_agent_query --task bc5cdr --mode normalized_id --normalized_id HGNC:1100
+python -m pipelines.run_agent_query --task bc5cdr --mode normalized_id --normalized_id CHEBI:27899
 ```
 
 Run a local smoke refresh through the BC5CDR pipeline, write results to
 SQLite, then query sentence-level evidence:
 
 ```bash
-python -m pipelines.run_agent_query --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --query "BRCA1 breast cancer" --allow_refresh --smoke
+python -m pipelines.run_agent_query --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --query "cisplatin kidney diseases" --allow_refresh --smoke
 ```
 
 Controller output includes:
@@ -294,16 +339,18 @@ Design notes:
 - `src/agent/L5_AGENT_LOGIC.md`
 - `doc/end_to_end_data_flow.md`
 - `doc/sentence_level_evidence_upgrade.md`
+- `doc/biored_primary_task_transition.md`
 
 ## Module Smoke Checks (Old-school)
 
 Run each core module directly:
 
 ```bash
-python -m src.ingestion.pubmed_client --query "BRCA1 breast cancer" --retmax 3
+python -m src.ingestion.pubmed_client --query "cisplatin kidney diseases" --retmax 3
 python -m src.extraction.data --dataset bc5cdr --max_length 128
 python -m src.extraction.train_ner --dry_run
-python -m src.retrieval.structured_query --query "BRCA1 breast cancer" --retmax 3
+python -m pipelines.run_extract_biored --smoke
+python -m src.retrieval.structured_query --query "cisplatin kidney diseases" --retmax 3
 python -m src.extraction.bc5cdr_pipeline --smoke
 python -m src.extraction.jnlpba_pipeline --query "IL-2 gene expression"
 ```
@@ -321,10 +368,10 @@ Current unit tests focus on:
 - PubMed XML parsing (mocked)
 - Retrieval pipeline assembly (mocked)
 - BIO span-to-entity merge behavior
-- Unified task output schema regression (BC5CDR + JNLPBA column contract checks)
+- Unified task output schema regression (BioRED + BC5CDR + JNLPBA contract checks)
 - L5 controller query/refresh decision flow and local smoke ingestion
 - L3-L5 sentence evidence storage, linking, and retrieval contract
 
 Schema contract source:
 - `src/contracts/task_output_schemas.py` (shared definitions)
-- `src/contracts/registry.py` (versioned registry, e.g. `bc5cdr:v1`, `jnlpba:v1`)
+- `src/contracts/registry.py` (versioned registry, e.g. `biored:v1`, `bc5cdr:v1`, `jnlpba:v1`)

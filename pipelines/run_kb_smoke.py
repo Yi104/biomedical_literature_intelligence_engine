@@ -17,7 +17,7 @@ def main():
     init_sqlite_schema(db_path)
 
     papers_df, entities_df = run_bc5cdr_pipeline(
-        query="BRCA1 breast cancer",
+        query="cisplatin kidney diseases",
         smoke=True,
     )
     added = write_pipeline_outputs_to_sqlite(
@@ -26,8 +26,8 @@ def main():
     print(f"OK: ingest smoke added={added}")
 
     by_pmid = get_mentions_by_pmid("SMOKE001", db_path=db_path)
-    by_norm = get_pmids_by_normalized_id("HGNC:1100", db_path=db_path)
-    by_type_kw = find_mentions_by_type_and_keyword("Gene", "brca", db_path=db_path)
+    by_norm = get_pmids_by_normalized_id("CHEBI:27899", db_path=db_path)
+    by_type_kw = find_mentions_by_type_and_keyword("Chemical", "cisplatin", db_path=db_path)
 
     print("OK: query by pmid")
     print(json.dumps(by_pmid, ensure_ascii=False, indent=2))

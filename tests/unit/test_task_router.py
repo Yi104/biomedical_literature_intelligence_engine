@@ -12,7 +12,7 @@ def test_run_task_dispatches_bc5cdr(monkeypatch):
     monkeypatch.setattr(tr, "run_bc5cdr_pipeline", fake_bc5cdr)
     monkeypatch.setattr(tr, "run_jnlpba_pipeline", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not call jnlpba")))
 
-    papers_df, entities_df = tr.run_task("bc5cdr", query="BRCA1 breast cancer")
+    papers_df, entities_df = tr.run_task("bc5cdr", query="cisplatin kidney diseases")
     assert papers_df.equals(sentinel[0])
     assert entities_df.equals(sentinel[1])
 

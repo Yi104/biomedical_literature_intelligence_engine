@@ -6,7 +6,7 @@ import argparse
 
 import pandas as pd
 
-from src.extraction.ner_infer import ner
+from src.extraction.ner_infer import ner, validate_model_label_mapping
 from src.ingestion.pubmed_client import fetch_pubmed_details, search_pubmed
 from src.normalization.rule_based import normalize_entities_df
 
@@ -22,11 +22,17 @@ def run_search_ner_pipeline(
     year_from: int | None = None,
     year_to: int | None = None,
     journal: str | None = None,
+    expected_entity_types: set[str] | None = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Run the current lightweight retrieval pipeline and return two tables:
     papers summary and extracted entity rows.
     """
+    if expected_entity_types:
+        # Validate once before PubMed/model processing so a wrong artifact
+        # cannot silently populate the KB with meaningless entity labels.
+        validate_model_label_mapping(model_path, expected_entity_types)
+
     # Step 1: fetch candidate papers from PubMed.
     pmids = search_pubmed(
         query=query,
@@ -84,7 +90,7 @@ def run_search_ner_pipeline(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Structured retrieval smoke check.")
-    parser.add_argument("--query", type=str, default="BRCA1 breast cancer")
+    parser.add_argument("--query", type=str, default="cisplatin kidney diseases")
     parser.add_argument("--model_path", type=str, default="outputs/best_model")
     parser.add_argument("--retmax", type=int, default=3)
     parser.add_argument("--max_length", type=int, default=256)

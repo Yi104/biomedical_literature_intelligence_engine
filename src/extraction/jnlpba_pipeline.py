@@ -8,8 +8,8 @@ import pandas as pd
 from src.normalization.rule_based import normalize_entities_df
 from src.retrieval.structured_query import run_search_ner_pipeline
 
-# Task B: broader biomedical entity discovery.
-# This module mirrors Task A flow but targets the JNLPBA model/output line.
+# Retained auxiliary task: broader biomedical entity discovery.
+# This module uses the shared two-table NER flow with the JNLPBA label space.
 
 
 def run_jnlpba_pipeline(

@@ -136,7 +136,7 @@ L5 can now use an evidence retrieval mode:
     "task": "bc5cdr",
     "retrieval_mode": "evidence_pmid",
     "pmid": "SMOKE001",
-    "search_query": "BRCA1 breast cancer",
+    "search_query": "cisplatin kidney diseases",
     "allow_refresh": True
 }
 ```
@@ -148,10 +148,10 @@ The returned `evidence` field contains sentence records:
     {
         "pmid": "SMOKE001",
         "task": "bc5cdr",
-        "sentence_text": "BRCA1 is associated with breast cancer.",
+        "sentence_text": "Cisplatin is associated with kidney diseases.",
         "entities": [
-            {"entity_text": "BRCA1", "normalized_id": "HGNC:1100"},
-            {"entity_text": "breast cancer", "normalized_id": "MESH:D001943"}
+            {"entity_text": "Cisplatin", "normalized_id": "CHEBI:27899"},
+            {"entity_text": "kidney diseases", "normalized_id": "MESH:D007674"}
         ]
     }
 ]

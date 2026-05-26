@@ -1,5 +1,6 @@
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 import torch
+from pathlib import Path
 
 # Layer: extraction
 # Role: run BioBERT NER inference and convert token labels into entity spans.
@@ -11,6 +12,50 @@ def get_label_mapping(model_path: str):
     id2label = model.config.id2label or {}
     id2label = {int(k): v for k, v in id2label.items()} if id2label else {}
     return dict(sorted(id2label.items(), key=lambda x: x[0]))
+
+
+def validate_model_label_mapping(
+    model_path: str,
+    expected_entity_types: set[str] | None = None,
+) -> dict[int, str]:
+    """
+    Reject model artifacts that cannot produce interpretable entity types.
+
+    A fine-tuned NER artifact must persist BIO labels such as B-Chemical and
+    B-Disease. Generic labels such as LABEL_0 lose the task meaning and would
+    cause downstream normalization and evidence storage to record invalid
+    entity types.
+    """
+    path = Path(model_path)
+    if (
+        model_path.startswith(("/", "./", "../", "outputs/"))
+        and not path.exists()
+    ):
+        raise FileNotFoundError(
+            f"Model directory not found: {model_path}. "
+            "Provide a trained task checkpoint with --model_path."
+        )
+
+    id2label = get_label_mapping(model_path)
+    labels = set(id2label.values())
+    if not labels or any(label.startswith("LABEL_") for label in labels):
+        raise ValueError(
+            f"Model at {model_path} does not persist interpretable BIO labels. "
+            "Expected labels such as B-Chemical and B-Disease, but found "
+            f"{sorted(labels)}. Re-save or retrain the task model with label mapping metadata."
+        )
+
+    entity_types = {
+        label.split("-", 1)[1]
+        for label in labels
+        if label.startswith(("B-", "I-")) and "-" in label
+    }
+    if expected_entity_types and not expected_entity_types.issubset(entity_types):
+        raise ValueError(
+            f"Model at {model_path} has entity types {sorted(entity_types)}, "
+            f"but this task requires {sorted(expected_entity_types)}."
+        )
+    return id2label
 
 
 def _collect_entities(words_with_labels):

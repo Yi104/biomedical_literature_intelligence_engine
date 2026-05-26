@@ -8,7 +8,7 @@ import pandas as pd
 from src.normalization.rule_based import normalize_entities_df
 from src.retrieval.structured_query import run_search_ner_pipeline
 
-# Task A: gene-disease evidence extraction.
+# Retained baseline task: BC5CDR chemical-disease evidence extraction.
 # This module keeps the BC5CDR-specific workflow separate from the broader entity-discovery path.
 
 
@@ -34,9 +34,9 @@ def run_bc5cdr_pipeline(
                     "title": "Smoke test paper",
                     "year": "2024",
                     "journal": "Smoke Journal",
-                    "abstract": "BRCA1 is associated with breast cancer.",
+                    "abstract": "Cisplatin is associated with kidney diseases.",
                     "entity_count": 2,
-                    "entity_types": "Gene:1, Disease:1",
+                    "entity_types": "Chemical:1, Disease:1",
                 }
             ]
         )
@@ -44,15 +44,15 @@ def run_bc5cdr_pipeline(
             [
                 {
                     "pmid": "SMOKE001",
-                    "entity_type": "Gene",
-                    "entity_text": "BRCA1",
+                    "entity_type": "Chemical",
+                    "entity_text": "Cisplatin",
                     "token_start": 0,
                     "token_end": 0,
                 },
                 {
                     "pmid": "SMOKE001",
                     "entity_type": "Disease",
-                    "entity_text": "breast cancer",
+                    "entity_text": "kidney diseases",
                     "token_start": 5,
                     "token_end": 6,
                 },
@@ -68,12 +68,13 @@ def run_bc5cdr_pipeline(
         year_from=year_from,
         year_to=year_to,
         journal=journal,
+        expected_entity_types={"Chemical", "Disease"},
     )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BC5CDR task smoke check.")
-    parser.add_argument("--query", type=str, default="BRCA1 breast cancer")
+    parser.add_argument("--query", type=str, default="cisplatin kidney diseases")
     parser.add_argument("--model_path", type=str, default="outputs/best_model")
     parser.add_argument("--retmax", type=int, default=3)
     parser.add_argument("--max_length", type=int, default=256)
