@@ -8,6 +8,8 @@ from src.kb.query import (
     get_evidence_sentences_by_pmid,
     get_mentions_by_pmid,
     get_pmids_by_normalized_id,
+    get_relations_by_entity_pair,
+    get_relations_by_pmid,
 )
 from src.kb.schema import DEFAULT_DB_PATH, init_sqlite_schema
 
@@ -19,6 +21,8 @@ def query_kb(
     normalized_id: str | None = None,
     entity_type: str | None = None,
     keyword: str | None = None,
+    entity1_normalized_id: str | None = None,
+    entity2_normalized_id: str | None = None,
     task: str | None = None,
     db_path: str = DEFAULT_DB_PATH,
 ) -> Dict[str, Any]:
@@ -71,10 +75,34 @@ def query_kb(
         filters = {"normalized_id": normalized_id}
         if task:
             filters["task"] = task
+    elif mode == "relation_pmid":
+        if not pmid:
+            raise ValueError("pmid is required when mode='relation_pmid'")
+        results = get_relations_by_pmid(pmid, task=task, db_path=resolved_db_path)
+        filters = {"pmid": pmid}
+        if task:
+            filters["task"] = task
+    elif mode == "relation_entity_pair":
+        if not entity1_normalized_id or not entity2_normalized_id:
+            raise ValueError(
+                "entity1_normalized_id and entity2_normalized_id are required when mode='relation_entity_pair'"
+            )
+        results = get_relations_by_entity_pair(
+            entity1_normalized_id,
+            entity2_normalized_id,
+            task=task,
+            db_path=resolved_db_path,
+        )
+        filters = {
+            "entity1_normalized_id": entity1_normalized_id,
+            "entity2_normalized_id": entity2_normalized_id,
+        }
+        if task:
+            filters["task"] = task
     else:
         raise ValueError(
             "mode must be one of: pmid, normalized_id, type_keyword, "
-            "evidence_pmid, evidence_normalized_id"
+            "evidence_pmid, evidence_normalized_id, relation_pmid, relation_entity_pair"
         )
 
     return {

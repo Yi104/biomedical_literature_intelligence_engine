@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Tuple
+from typing import Dict, Tuple
 
 import pandas as pd
 
@@ -156,3 +156,109 @@ def write_pipeline_outputs_to_sqlite(
         int(after_norm - before_norm),
         int(after_sentences - before_sentences),
     )
+
+
+def write_pipeline_outputs_with_relations_to_sqlite(
+    papers_df: pd.DataFrame,
+    entities_df: pd.DataFrame,
+    relations_df: pd.DataFrame,
+    db_path: str = DEFAULT_DB_PATH,
+    task: str = "biored",
+) -> Dict[str, int]:
+    """
+    Persist pipeline outputs including relation/provenance rows.
+
+    This function keeps backward compatibility by building on the existing
+    mention/sentence writer, then appending BioRED-style relations.
+    """
+    added_papers, added_mentions, added_normalized, added_sentences = (
+        write_pipeline_outputs_to_sqlite(
+            papers_df,
+            entities_df,
+            db_path=db_path,
+            task=task,
+        )
+    )
+
+    resolved_db_path = init_sqlite_schema(db_path)
+    conn = sqlite3.connect(resolved_db_path)
+    try:
+        before_relations = conn.execute("SELECT COUNT(*) FROM entity_relations").fetchone()[0]
+        before_provenance = conn.execute("SELECT COUNT(*) FROM relation_provenance").fetchone()[0]
+
+        for _, row in relations_df.iterrows():
+            relation_source = str(row.get("relation_source", "unknown_relation_source"))
+            pmid = str(row.get("pmid", ""))
+            relation_type = str(row.get("relation_type", ""))
+            e1_norm = str(row.get("entity1_normalized_id", ""))
+            e2_norm = str(row.get("entity2_normalized_id", ""))
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO entity_relations
+                (
+                    pmid, task, relation_type,
+                    entity1_text, entity1_type, entity1_normalized_id,
+                    entity2_text, entity2_type, entity2_normalized_id,
+                    relation_source
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    pmid,
+                    task,
+                    relation_type,
+                    str(row.get("entity1_text", "")),
+                    str(row.get("entity1_type", "")),
+                    e1_norm,
+                    str(row.get("entity2_text", "")),
+                    str(row.get("entity2_type", "")),
+                    e2_norm,
+                    relation_source,
+                ),
+            )
+            relation_row = conn.execute(
+                """
+                SELECT relation_id
+                FROM entity_relations
+                WHERE pmid = ? AND task = ? AND relation_type = ?
+                  AND entity1_normalized_id = ? AND entity2_normalized_id = ?
+                  AND relation_source = ?
+                """,
+                (pmid, task, relation_type, e1_norm, e2_norm, relation_source),
+            ).fetchone()
+            if not relation_row:
+                continue
+            relation_id = int(relation_row[0])
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO relation_provenance
+                (
+                    relation_id, evidence_sentence, novelty,
+                    provenance_source, confidence
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    relation_id,
+                    str(row.get("evidence_sentence", "")),
+                    str(row.get("novelty", "")),
+                    "biored_relation_v1",
+                    float(row.get("confidence", 1.0)),
+                ),
+            )
+
+        conn.commit()
+
+        after_relations = conn.execute("SELECT COUNT(*) FROM entity_relations").fetchone()[0]
+        after_provenance = conn.execute("SELECT COUNT(*) FROM relation_provenance").fetchone()[0]
+    finally:
+        conn.close()
+
+    return {
+        "papers_added": int(added_papers),
+        "mentions_added": int(added_mentions),
+        "normalized_entities_added": int(added_normalized),
+        "evidence_sentences_added": int(added_sentences),
+        "relations_added": int(after_relations - before_relations),
+        "relation_provenance_added": int(after_provenance - before_provenance),
+    }

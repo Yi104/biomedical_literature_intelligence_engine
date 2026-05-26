@@ -9,7 +9,7 @@ from src.kb.schema import DEFAULT_DB_PATH
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the deterministic L5 agent controller.")
-    parser.add_argument("--task", choices=["bc5cdr", "jnlpba"], default="bc5cdr")
+    parser.add_argument("--task", choices=["bc5cdr", "jnlpba", "biored"], default="bc5cdr")
     parser.add_argument(
         "--mode",
         dest="retrieval_mode",
@@ -19,6 +19,8 @@ def main() -> None:
             "type_keyword",
             "evidence_pmid",
             "evidence_normalized_id",
+            "relation_pmid",
+            "relation_entity_pair",
         ],
         required=True,
     )
@@ -26,10 +28,18 @@ def main() -> None:
     parser.add_argument("--normalized_id", type=str, default=None)
     parser.add_argument("--entity_type", type=str, default=None)
     parser.add_argument("--keyword", type=str, default=None)
+    parser.add_argument("--entity1_normalized_id", type=str, default=None)
+    parser.add_argument("--entity2_normalized_id", type=str, default=None)
     parser.add_argument("--query", dest="search_query", type=str, default=None)
     parser.add_argument("--retmax", type=int, default=5)
     parser.add_argument("--max_length", type=int, default=256)
     parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        default=None,
+        help="Required for biored live refresh; points to local PubTator file.",
+    )
     parser.add_argument("--db_path", type=str, default=DEFAULT_DB_PATH)
     parser.add_argument(
         "--allow_refresh",
@@ -50,12 +60,15 @@ def main() -> None:
         normalized_id=args.normalized_id,
         entity_type=args.entity_type,
         keyword=args.keyword,
+        entity1_normalized_id=args.entity1_normalized_id,
+        entity2_normalized_id=args.entity2_normalized_id,
         search_query=args.search_query,
         retmax=args.retmax,
         max_length=args.max_length,
         model_path=args.model_path,
         allow_refresh=args.allow_refresh,
         smoke=args.smoke,
+        data_path=args.data_path,
         db_path=args.db_path,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

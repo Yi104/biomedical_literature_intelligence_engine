@@ -98,6 +98,48 @@ def init_sqlite_schema(db_path: str = DEFAULT_DB_PATH) -> str:
         )
 
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS entity_relations (
+                relation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pmid TEXT NOT NULL,
+                task TEXT NOT NULL,
+                relation_type TEXT NOT NULL,
+                entity1_text TEXT,
+                entity1_type TEXT,
+                entity1_normalized_id TEXT,
+                entity2_text TEXT,
+                entity2_type TEXT,
+                entity2_normalized_id TEXT,
+                relation_source TEXT NOT NULL,
+                UNIQUE(
+                    pmid,
+                    task,
+                    relation_type,
+                    entity1_normalized_id,
+                    entity2_normalized_id,
+                    relation_source
+                ),
+                FOREIGN KEY(pmid) REFERENCES papers(pmid)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS relation_provenance (
+                provenance_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                relation_id INTEGER NOT NULL,
+                evidence_sentence TEXT,
+                novelty TEXT,
+                provenance_source TEXT NOT NULL,
+                confidence REAL,
+                UNIQUE(relation_id, evidence_sentence, provenance_source),
+                FOREIGN KEY(relation_id) REFERENCES entity_relations(relation_id)
+            )
+            """
+        )
+
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_entity_mentions_pmid ON entity_mentions(pmid)"
         )
         conn.execute(
@@ -111,6 +153,15 @@ def init_sqlite_schema(db_path: str = DEFAULT_DB_PATH) -> str:
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_evidence_sentences_task ON evidence_sentences(task)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entity_relations_pmid_task ON entity_relations(pmid, task)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entity_relations_pair ON entity_relations(entity1_normalized_id, entity2_normalized_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_relation_provenance_relation_id ON relation_provenance(relation_id)"
         )
         conn.commit()
     finally:

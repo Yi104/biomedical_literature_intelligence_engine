@@ -40,4 +40,5 @@ BIORED_RELATIONS_COLUMNS_V1: list[str] = [
     "entity2_normalized_id",
     "evidence_sentence",
     "relation_source",
+    "novelty",
 ]

@@ -5,19 +5,24 @@ from typing import Any, Callable, Dict, Tuple
 import pandas as pd
 
 from src.kb.schema import DEFAULT_DB_PATH
-from src.kb.writer import write_pipeline_outputs_to_sqlite
+from src.kb.writer import (
+    write_pipeline_outputs_to_sqlite,
+    write_pipeline_outputs_with_relations_to_sqlite,
+)
 from src.retrieval.sqlite_service import query_kb
 from src.retrieval.task_router import run_task
 
-RefreshRunner = Callable[..., Tuple[pd.DataFrame, pd.DataFrame]]
+RefreshRunner = Callable[..., Tuple[pd.DataFrame, ...]]
 
-SUPPORTED_TASKS = {"bc5cdr", "jnlpba"}
+SUPPORTED_TASKS = {"bc5cdr", "jnlpba", "biored"}
 SUPPORTED_RETRIEVAL_MODES = {
     "pmid",
     "normalized_id",
     "type_keyword",
     "evidence_pmid",
     "evidence_normalized_id",
+    "relation_pmid",
+    "relation_entity_pair",
 }
 
 
@@ -29,19 +34,21 @@ def _validate_request(
     normalized_id: str | None,
     entity_type: str | None,
     keyword: str | None,
+    entity1_normalized_id: str | None,
+    entity2_normalized_id: str | None,
     search_query: str | None,
     allow_refresh: bool,
 ) -> Tuple[str, str]:
     """Validate inputs before any task pipeline is allowed to run."""
     resolved_task = task.lower().strip()
     if resolved_task not in SUPPORTED_TASKS:
-        raise ValueError("task must be one of: bc5cdr, jnlpba")
+        raise ValueError("task must be one of: bc5cdr, jnlpba, biored")
 
     resolved_mode = retrieval_mode.lower().strip()
     if resolved_mode not in SUPPORTED_RETRIEVAL_MODES:
         raise ValueError(
             "retrieval_mode must be one of: pmid, normalized_id, type_keyword, "
-            "evidence_pmid, evidence_normalized_id"
+            "evidence_pmid, evidence_normalized_id, relation_pmid, relation_entity_pair"
         )
 
     if resolved_mode in {"pmid", "evidence_pmid"} and not pmid:
@@ -51,6 +58,12 @@ def _validate_request(
     if resolved_mode == "type_keyword" and (not entity_type or not keyword):
         raise ValueError(
             "entity_type and keyword are required when retrieval_mode='type_keyword'"
+        )
+    if resolved_mode == "relation_entity_pair" and (
+        not entity1_normalized_id or not entity2_normalized_id
+    ):
+        raise ValueError(
+            "entity1_normalized_id and entity2_normalized_id are required when retrieval_mode='relation_entity_pair'"
         )
 
     # In v1, refresh is an explicit operation, not a guess based on an empty lookup.
@@ -67,12 +80,19 @@ def _filters_for_request(
     normalized_id: str | None,
     entity_type: str | None,
     keyword: str | None,
+    entity1_normalized_id: str | None,
+    entity2_normalized_id: str | None,
 ) -> Dict[str, str]:
     """Build response filters for failure paths where L4 is not reached."""
-    if retrieval_mode in {"pmid", "evidence_pmid"}:
+    if retrieval_mode in {"pmid", "evidence_pmid", "relation_pmid"}:
         return {"pmid": str(pmid)}
     if retrieval_mode in {"normalized_id", "evidence_normalized_id"}:
         return {"normalized_id": str(normalized_id)}
+    if retrieval_mode == "relation_entity_pair":
+        return {
+            "entity1_normalized_id": str(entity1_normalized_id),
+            "entity2_normalized_id": str(entity2_normalized_id),
+        }
     return {"entity_type": str(entity_type), "keyword": str(keyword)}
 
 
@@ -84,7 +104,8 @@ def _default_refresh_runner(
     max_length: int,
     model_path: str | None,
     smoke: bool,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    data_path: str | None,
+) -> Tuple[pd.DataFrame, ...]:
     """Run an existing extraction/normalization task without duplicating task logic."""
     pipeline_args: Dict[str, Any] = {
         "query": search_query,
@@ -94,6 +115,8 @@ def _default_refresh_runner(
     }
     if model_path is not None:
         pipeline_args["model_path"] = model_path
+    if data_path is not None:
+        pipeline_args["data_path"] = data_path
     return run_task(task, **pipeline_args)
 
 
@@ -105,12 +128,15 @@ def run_agent_controller(
     normalized_id: str | None = None,
     entity_type: str | None = None,
     keyword: str | None = None,
+    entity1_normalized_id: str | None = None,
+    entity2_normalized_id: str | None = None,
     search_query: str | None = None,
     retmax: int = 5,
     max_length: int = 256,
     model_path: str | None = None,
     allow_refresh: bool = False,
     smoke: bool = False,
+    data_path: str | None = None,
     db_path: str = DEFAULT_DB_PATH,
     refresh_runner: RefreshRunner | None = None,
 ) -> Dict[str, Any]:
@@ -128,6 +154,8 @@ def run_agent_controller(
         normalized_id=normalized_id,
         entity_type=entity_type,
         keyword=keyword,
+        entity1_normalized_id=entity1_normalized_id,
+        entity2_normalized_id=entity2_normalized_id,
         search_query=search_query,
         allow_refresh=allow_refresh,
     )
@@ -136,26 +164,39 @@ def run_agent_controller(
     if allow_refresh:
         runner = refresh_runner or _default_refresh_runner
         try:
-            papers_df, entities_df = runner(
+            runner_output = runner(
                 resolved_task,
                 search_query=str(search_query),
                 retmax=retmax,
                 max_length=max_length,
                 model_path=model_path,
                 smoke=smoke,
+                data_path=data_path,
             )
-            added_papers, added_mentions, added_normalized, added_sentences = (
-                write_pipeline_outputs_to_sqlite(
-                    papers_df, entities_df, db_path=db_path, task=resolved_task
+            if resolved_task == "biored":
+                papers_df, entities_df, relations_df = runner_output
+                refresh_summary = write_pipeline_outputs_with_relations_to_sqlite(
+                    papers_df,
+                    entities_df,
+                    relations_df,
+                    db_path=db_path,
+                    task=resolved_task,
                 )
-            )
-            refresh_summary = {
-                "search_query": search_query,
-                "papers_added": added_papers,
-                "mentions_added": added_mentions,
-                "normalized_entities_added": added_normalized,
-                "evidence_sentences_added": added_sentences,
-            }
+                refresh_summary["search_query"] = search_query
+            else:
+                papers_df, entities_df = runner_output
+                added_papers, added_mentions, added_normalized, added_sentences = (
+                    write_pipeline_outputs_to_sqlite(
+                        papers_df, entities_df, db_path=db_path, task=resolved_task
+                    )
+                )
+                refresh_summary = {
+                    "search_query": search_query,
+                    "papers_added": added_papers,
+                    "mentions_added": added_mentions,
+                    "normalized_entities_added": added_normalized,
+                    "evidence_sentences_added": added_sentences,
+                }
         except Exception as exc:
             return {
                 "status": "refresh_failed",
@@ -167,6 +208,8 @@ def run_agent_controller(
                     normalized_id=normalized_id,
                     entity_type=entity_type,
                     keyword=keyword,
+                    entity1_normalized_id=entity1_normalized_id,
+                    entity2_normalized_id=entity2_normalized_id,
                 ),
                 "refreshed": False,
                 "count": 0,
@@ -181,7 +224,11 @@ def run_agent_controller(
         normalized_id=normalized_id,
         entity_type=entity_type,
         keyword=keyword,
-        task=resolved_task if resolved_mode.startswith("evidence_") else None,
+        entity1_normalized_id=entity1_normalized_id,
+        entity2_normalized_id=entity2_normalized_id,
+        task=resolved_task
+        if (resolved_mode.startswith("evidence_") or resolved_mode.startswith("relation_"))
+        else None,
         db_path=db_path,
     )
     if allow_refresh:

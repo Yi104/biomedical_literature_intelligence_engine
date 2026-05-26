@@ -11,6 +11,18 @@ def main() -> None:
     )
     parser.add_argument("--query", type=str, default="BRCA1 breast cancer")
     parser.add_argument(
+        "--data_path",
+        type=str,
+        default=None,
+        help="Path to local BioRED PubTator file for live mode.",
+    )
+    parser.add_argument(
+        "--max_docs",
+        type=int,
+        default=None,
+        help="Optional cap for number of parsed PubTator documents.",
+    )
+    parser.add_argument(
         "--smoke",
         action="store_true",
         help="Run the deterministic BioRED contract check without a live model.",
@@ -20,6 +32,8 @@ def main() -> None:
     papers_df, entities_df, relations_df = run_biored_pipeline(
         query=args.query,
         smoke=args.smoke,
+        data_path=args.data_path,
+        max_docs=args.max_docs,
     )
     print(
         "OK: biored "

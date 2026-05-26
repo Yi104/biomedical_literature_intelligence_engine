@@ -157,3 +157,91 @@ def get_evidence_sentences_by_normalized_id(
         return results
     finally:
         conn.close()
+
+
+def get_relations_by_pmid(
+    pmid: str,
+    *,
+    task: str | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> List[Dict]:
+    resolved_db_path = init_sqlite_schema(db_path)
+    conn = sqlite3.connect(resolved_db_path)
+    try:
+        where = "WHERE er.pmid = ?"
+        params: tuple[str, ...] = (pmid,)
+        if task:
+            where += " AND er.task = ?"
+            params = (pmid, task)
+        cur = conn.execute(
+            f"""
+            SELECT er.relation_id, er.pmid, er.task, er.relation_type,
+                   er.entity1_text, er.entity1_type, er.entity1_normalized_id,
+                   er.entity2_text, er.entity2_type, er.entity2_normalized_id,
+                   er.relation_source
+            FROM entity_relations er
+            {where}
+            ORDER BY er.relation_id
+            """,
+            params,
+        )
+        results = _rows_to_dicts(cur)
+        for row in results:
+            pcur = conn.execute(
+                """
+                SELECT evidence_sentence, novelty, provenance_source, confidence
+                FROM relation_provenance
+                WHERE relation_id = ?
+                ORDER BY provenance_id
+                """,
+                (row["relation_id"],),
+            )
+            row["provenance"] = _rows_to_dicts(pcur)
+        return results
+    finally:
+        conn.close()
+
+
+def get_relations_by_entity_pair(
+    entity1_normalized_id: str,
+    entity2_normalized_id: str,
+    *,
+    task: str | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> List[Dict]:
+    resolved_db_path = init_sqlite_schema(db_path)
+    conn = sqlite3.connect(resolved_db_path)
+    try:
+        task_filter = ""
+        params: tuple[str, ...] = (entity1_normalized_id, entity2_normalized_id)
+        if task:
+            task_filter = " AND er.task = ?"
+            params = (entity1_normalized_id, entity2_normalized_id, task)
+        cur = conn.execute(
+            f"""
+            SELECT er.relation_id, er.pmid, er.task, er.relation_type,
+                   er.entity1_text, er.entity1_type, er.entity1_normalized_id,
+                   er.entity2_text, er.entity2_type, er.entity2_normalized_id,
+                   er.relation_source
+            FROM entity_relations er
+            WHERE er.entity1_normalized_id = ?
+              AND er.entity2_normalized_id = ?{task_filter}
+            ORDER BY er.pmid, er.relation_id
+            """,
+            params,
+        )
+        results = _rows_to_dicts(cur)
+        for row in results:
+            pcur = conn.execute(
+                """
+                SELECT evidence_sentence, novelty, provenance_source, confidence
+                FROM relation_provenance
+                WHERE relation_id = ?
+                ORDER BY provenance_id
+                """,
+                (row["relation_id"],),
+            )
+            row["provenance"] = _rows_to_dicts(pcur)
+        return results
+    finally:
+        conn.close()

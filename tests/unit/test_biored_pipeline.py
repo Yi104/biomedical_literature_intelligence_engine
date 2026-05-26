@@ -22,5 +22,5 @@ def test_biored_smoke_contract_includes_gene_disease_relation():
 
 
 def test_biored_live_path_is_not_claimed_as_implemented():
-    with pytest.raises(NotImplementedError, match="BioRED live pipeline is not implemented"):
+    with pytest.raises(FileNotFoundError, match="requires --data_path"):
         run_biored_pipeline(query="BRCA1 breast cancer", smoke=False)

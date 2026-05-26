@@ -4,6 +4,7 @@ from typing import Tuple
 
 import pandas as pd
 
+from src.extraction.biored_loader import load_biored_pubtator_as_dataframes
 from src.normalization.rule_based import normalize_entities_df
 
 # Primary target task: BioRED supports gene/protein and disease entities plus
@@ -14,6 +15,8 @@ from src.normalization.rule_based import normalize_entities_df
 def run_biored_pipeline(
     query: str,
     smoke: bool = False,
+    data_path: str | None = None,
+    max_docs: int | None = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Return BioRED-shaped papers, entities, and relations.
@@ -22,10 +25,14 @@ def run_biored_pipeline(
     gene-disease evidence task must carry relation rows, not only NER mentions.
     """
     if not smoke:
-        raise NotImplementedError(
-            "BioRED live pipeline is not implemented yet. "
-            "Use --smoke to inspect the primary-task output contract; "
-            "next implement BioRED data loading and relation persistence."
+        if not data_path:
+            raise FileNotFoundError(
+                "BioRED live mode requires --data_path to a local PubTator file "
+                "(for example Train.PubTator or Dev.PubTator)."
+            )
+        return load_biored_pubtator_as_dataframes(
+            pubtator_path=data_path,
+            max_docs=max_docs,
         )
 
     papers_df = pd.DataFrame(
@@ -74,6 +81,7 @@ def run_biored_pipeline(
                 "entity2_normalized_id": entities_df.iloc[1]["normalized_id"],
                 "evidence_sentence": "BRCA1 is associated with breast cancer.",
                 "relation_source": "smoke_contract_only",
+                "novelty": "Novel",
             }
         ]
     )
