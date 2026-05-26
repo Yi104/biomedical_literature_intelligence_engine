@@ -4,6 +4,8 @@ from typing import Any, Dict
 
 from src.kb.query import (
     find_mentions_by_type_and_keyword,
+    get_evidence_sentences_by_normalized_id,
+    get_evidence_sentences_by_pmid,
     get_mentions_by_pmid,
     get_pmids_by_normalized_id,
 )
@@ -17,6 +19,7 @@ def query_kb(
     normalized_id: str | None = None,
     entity_type: str | None = None,
     keyword: str | None = None,
+    task: str | None = None,
     db_path: str = DEFAULT_DB_PATH,
 ) -> Dict[str, Any]:
     """
@@ -50,8 +53,29 @@ def query_kb(
             entity_type, keyword, db_path=resolved_db_path
         )
         filters = {"entity_type": entity_type, "keyword": keyword}
+    elif mode == "evidence_pmid":
+        if not pmid:
+            raise ValueError("pmid is required when mode='evidence_pmid'")
+        results = get_evidence_sentences_by_pmid(pmid, task=task, db_path=resolved_db_path)
+        filters = {"pmid": pmid}
+        if task:
+            filters["task"] = task
+    elif mode == "evidence_normalized_id":
+        if not normalized_id:
+            raise ValueError(
+                "normalized_id is required when mode='evidence_normalized_id'"
+            )
+        results = get_evidence_sentences_by_normalized_id(
+            normalized_id, task=task, db_path=resolved_db_path
+        )
+        filters = {"normalized_id": normalized_id}
+        if task:
+            filters["task"] = task
     else:
-        raise ValueError("mode must be one of: pmid, normalized_id, type_keyword")
+        raise ValueError(
+            "mode must be one of: pmid, normalized_id, type_keyword, "
+            "evidence_pmid, evidence_normalized_id"
+        )
 
     return {
         "mode": mode,
@@ -59,4 +83,3 @@ def query_kb(
         "count": len(results),
         "results": results,
     }
-

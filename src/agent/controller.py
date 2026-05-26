@@ -12,7 +12,13 @@ from src.retrieval.task_router import run_task
 RefreshRunner = Callable[..., Tuple[pd.DataFrame, pd.DataFrame]]
 
 SUPPORTED_TASKS = {"bc5cdr", "jnlpba"}
-SUPPORTED_RETRIEVAL_MODES = {"pmid", "normalized_id", "type_keyword"}
+SUPPORTED_RETRIEVAL_MODES = {
+    "pmid",
+    "normalized_id",
+    "type_keyword",
+    "evidence_pmid",
+    "evidence_normalized_id",
+}
 
 
 def _validate_request(
@@ -33,12 +39,15 @@ def _validate_request(
 
     resolved_mode = retrieval_mode.lower().strip()
     if resolved_mode not in SUPPORTED_RETRIEVAL_MODES:
-        raise ValueError("retrieval_mode must be one of: pmid, normalized_id, type_keyword")
+        raise ValueError(
+            "retrieval_mode must be one of: pmid, normalized_id, type_keyword, "
+            "evidence_pmid, evidence_normalized_id"
+        )
 
-    if resolved_mode == "pmid" and not pmid:
-        raise ValueError("pmid is required when retrieval_mode='pmid'")
-    if resolved_mode == "normalized_id" and not normalized_id:
-        raise ValueError("normalized_id is required when retrieval_mode='normalized_id'")
+    if resolved_mode in {"pmid", "evidence_pmid"} and not pmid:
+        raise ValueError("pmid is required for PMID retrieval modes")
+    if resolved_mode in {"normalized_id", "evidence_normalized_id"} and not normalized_id:
+        raise ValueError("normalized_id is required for normalized-ID retrieval modes")
     if resolved_mode == "type_keyword" and (not entity_type or not keyword):
         raise ValueError(
             "entity_type and keyword are required when retrieval_mode='type_keyword'"
@@ -60,9 +69,9 @@ def _filters_for_request(
     keyword: str | None,
 ) -> Dict[str, str]:
     """Build response filters for failure paths where L4 is not reached."""
-    if retrieval_mode == "pmid":
+    if retrieval_mode in {"pmid", "evidence_pmid"}:
         return {"pmid": str(pmid)}
-    if retrieval_mode == "normalized_id":
+    if retrieval_mode in {"normalized_id", "evidence_normalized_id"}:
         return {"normalized_id": str(normalized_id)}
     return {"entity_type": str(entity_type), "keyword": str(keyword)}
 
@@ -135,14 +144,17 @@ def run_agent_controller(
                 model_path=model_path,
                 smoke=smoke,
             )
-            added_papers, added_mentions, added_normalized = (
-                write_pipeline_outputs_to_sqlite(papers_df, entities_df, db_path=db_path)
+            added_papers, added_mentions, added_normalized, added_sentences = (
+                write_pipeline_outputs_to_sqlite(
+                    papers_df, entities_df, db_path=db_path, task=resolved_task
+                )
             )
             refresh_summary = {
                 "search_query": search_query,
                 "papers_added": added_papers,
                 "mentions_added": added_mentions,
                 "normalized_entities_added": added_normalized,
+                "evidence_sentences_added": added_sentences,
             }
         except Exception as exc:
             return {
@@ -169,6 +181,7 @@ def run_agent_controller(
         normalized_id=normalized_id,
         entity_type=entity_type,
         keyword=keyword,
+        task=resolved_task if resolved_mode.startswith("evidence_") else None,
         db_path=db_path,
     )
     if allow_refresh:

@@ -15,11 +15,12 @@ external normalization sources
   -> task-specific BioBERT NER
   -> deterministic normalization
   -> SQLite knowledge base
+  -> sentence-level evidence retrieval
   -> L5 evidence bundle
 ```
 
-Sentence-level citation evidence and LLM-generated summaries are planned
-extensions, not current stored outputs.
+Sentence-level citation evidence is now stored and retrievable. LLM-generated
+summaries remain a planned extension, not a current system output.
 
 ## 1. Data Categories
 
@@ -33,6 +34,7 @@ each other.
 | Retrieved paper data | PMID, title, abstract from PubMed | Text input for extraction and source provenance for evidence | Runtime DataFrame, then SQLite `papers` |
 | Extracted mention data | `BRCA1`, `breast cancer`, token offsets | Model output before/after normalization | Runtime DataFrame, then SQLite `entity_mentions` |
 | Canonical entity data | `HGNC:1100`, `MESH:D001943` | Reusable normalized entity identities | SQLite `normalized_entities` |
+| Sentence evidence data | `BRCA1 is associated with breast cancer.` | Citation-ready source text linked to normalized mentions | SQLite `evidence_sentences` + `evidence_sentence_mentions` |
 | L5 controller response | `status`, `filters`, `evidence`, `refresh` | Structured output for UI or future L6 summarization | Returned JSON payload; not separately persisted |
 
 ## 2. Normalization Mapping Preparation
@@ -94,6 +96,8 @@ flowchart TD
     L --> M["papers"]
     L --> N["entity_mentions"]
     L --> O["normalized_entities"]
+    L --> P["evidence_sentences"]
+    L --> Q["evidence_sentence_mentions"]
 ```
 
 ### Current Pipeline Tables
@@ -103,7 +107,7 @@ flowchart TD
 | PubMed ingestion | Query string and filters | `pmid`, `title`, `year`, `journal`, `abstract` | Written later through `papers_df` |
 | BioBERT NER | Abstract tokens and selected task model | `entity_type`, `entity_text`, `token_start`, `token_end` | Written later through `entities_df` |
 | Normalization | Each extracted mention | `normalized_text`, `normalized_id`, `normalized_source`, `normalized_score` | Written later through `entities_df` |
-| SQLite writer | `papers_df`, `entities_df` | Rows in three KB tables | Yes |
+| SQLite writer | `papers_df`, `entities_df` | Rows in mention and sentence-evidence KB tables | Yes |
 
 ### SQLite Storage Boundary
 
@@ -112,9 +116,12 @@ flowchart TD
 | `papers` | PubMed source records | `SMOKE001`, title, abstract |
 | `entity_mentions` | Mentions tied to a PMID, including normalization result | `BRCA1 -> HGNC:1100` in `SMOKE001` |
 | `normalized_entities` | Distinct resolved canonical entities | `HGNC:1100`, `BRCA1`, `Gene` |
+| `evidence_sentences` | Source abstract sentences with task provenance | `BRCA1 is associated with breast cancer.` |
+| `evidence_sentence_mentions` | Links source sentences to extracted mentions | Evidence sentence linked to `BRCA1` and `breast cancer` |
 
-The current SQLite schema stores mention-level evidence. It does not yet store
-the exact supporting sentence for later citation-grounded summarization.
+Sentence links currently use surface-text occurrence because extraction output
+does not yet preserve exact source character offsets. Character-offset linking
+is a planned precision upgrade.
 
 ## 4. L5 Query-Time Controller Flow
 
@@ -124,7 +131,7 @@ SQLite or explicitly refresh the KB and then query it.
 ```mermaid
 flowchart TD
     A["L5 request<br/>task + retrieval mode + filters"] --> B{"allow_refresh?"}
-    B -->|No| C["L4 query_kb(...)<br/>read SQLite only"]
+    B -->|No| C["L4 query_kb(...)<br/>mention or sentence evidence mode"]
     C --> D{"Evidence returned?"}
     D -->|Yes| E["status: evidence_found"]
     D -->|No| F["status: insufficient_evidence"]
@@ -132,7 +139,7 @@ flowchart TD
     B -->|Yes, with search_query| G["Run selected task pipeline"]
     G --> H["Normalize extracted mentions"]
     H --> I["L3 write_pipeline_outputs_to_sqlite(...)"]
-    I --> J["L4 query_kb(...)"]
+    I --> J["L4 query_kb(...)<br/>including evidence modes"]
     J --> K{"Evidence returned?"}
     K -->|Yes| L["status: refreshed_and_found"]
     K -->|No| M["status: refreshed_no_evidence"]
@@ -163,7 +170,7 @@ Explicit-refresh example input:
 ```python
 {
     "task": "bc5cdr",
-    "retrieval_mode": "pmid",
+    "retrieval_mode": "evidence_pmid",
     "pmid": "SMOKE001",
     "search_query": "BRCA1 breast cancer",
     "allow_refresh": True
@@ -176,7 +183,7 @@ Current response shape:
 {
     "status": "refreshed_and_found",
     "task": "bc5cdr",
-    "retrieval_mode": "pmid",
+    "retrieval_mode": "evidence_pmid",
     "filters": {"pmid": "SMOKE001"},
     "refreshed": True,
     "count": 2,
@@ -188,7 +195,8 @@ Current response shape:
         "search_query": "BRCA1 breast cancer",
         "papers_added": 1,
         "mentions_added": 2,
-        "normalized_entities_added": 2
+        "normalized_entities_added": 2,
+        "evidence_sentences_added": 1
     },
     "message": None
 }
@@ -210,21 +218,20 @@ flowchart TD
     A["Implemented now<br/>PubMed abstract"] --> B["NER mention"]
     B --> C["Normalized entity"]
     C --> D["SQLite mention-level KB"]
-    D --> E["L5 evidence bundle"]
+    D --> E["Sentence evidence storage"]
+    E --> F["L5 sentence evidence bundle"]
 
-    E -. "next extension" .-> F["Sentence-level evidence record"]
-    F -.-> G["Citation-ready L4 retrieval"]
-    G -.-> H["L6 constrained summary"]
-    H -.-> I["L7 answer with citations"]
+    F -. "next extension" .-> G["L6 constrained summary"]
+    G -.-> H["L7 answer with citations"]
 ```
 
 | Capability | Implemented now | Planned next |
 | --- | --- | --- |
 | Entity extraction | Yes | Improve model/service packaging |
 | Canonical normalization | Yes | Handle ambiguous aliases and mapping version snapshots |
-| SQLite persistence | Yes, mention-level | Add sentence and ingestion provenance tables |
-| L5 controller | Yes, deterministic read/refresh paths | Add validated multi-step plans and decision traces |
-| Citation-ready evidence sentences | No | Required before grounded L6 summaries |
+| SQLite persistence | Yes, mention and sentence evidence tables | Add ingestion provenance tables and character-offset linking |
+| L5 controller | Yes, deterministic read/refresh and sentence evidence modes | Add validated multi-step plans and decision traces |
+| Citation-ready evidence sentences | Yes, source sentences linked to mentions | Improve sentence segmentation/link precision |
 | LLM answer generation | Router skeleton only | Consume evidence bundle after citation data is available |
 
 ## 6. File Map
@@ -237,10 +244,12 @@ flowchart TD
 | Run JNLPBA task path | `src/extraction/jnlpba_pipeline.py` |
 | Normalize extracted mentions | `src/normalization/rule_based.py` |
 | Create SQLite tables | `src/kb/schema.py` |
+| Split abstracts and link sentence evidence | `src/kb/evidence.py` |
 | Write pipeline outputs to SQLite | `src/kb/writer.py` |
 | Query SQLite through a stable L4 contract | `src/retrieval/sqlite_service.py` |
 | Orchestrate read-only or refresh evidence paths | `src/agent/controller.py` |
 | Run L5 from the command line | `pipelines/run_agent_query.py` |
+| Explain the L3-L5 evidence upgrade | `doc/sentence_level_evidence_upgrade.md` |
 
 ## 7. Useful Commands
 
@@ -253,7 +262,7 @@ python -m pipelines.build_normalization_mappings
 Run an L5 local smoke refresh and evidence query:
 
 ```bash
-python -m pipelines.run_agent_query --task bc5cdr --mode pmid --pmid SMOKE001 --query "BRCA1 breast cancer" --allow_refresh --smoke
+python -m pipelines.run_agent_query --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --query "BRCA1 breast cancer" --allow_refresh --smoke
 ```
 
 Query existing normalized evidence without modifying the KB:

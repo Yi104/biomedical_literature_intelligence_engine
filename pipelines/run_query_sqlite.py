@@ -12,9 +12,16 @@ def main():
     parser.add_argument("--db_path", type=str, default=DEFAULT_DB_PATH)
     parser.add_argument(
         "--mode",
-        choices=["pmid", "normalized_id", "type_keyword"],
+        choices=[
+            "pmid",
+            "normalized_id",
+            "type_keyword",
+            "evidence_pmid",
+            "evidence_normalized_id",
+        ],
         required=True,
     )
+    parser.add_argument("--task", choices=["bc5cdr", "jnlpba"], default=None)
     parser.add_argument("--pmid", type=str, default=None)
     parser.add_argument("--normalized_id", type=str, default=None)
     parser.add_argument("--entity_type", type=str, default=None)
@@ -27,6 +34,7 @@ def main():
         normalized_id=args.normalized_id,
         entity_type=args.entity_type,
         keyword=args.keyword,
+        task=args.task,
         db_path=args.db_path,
     )
 

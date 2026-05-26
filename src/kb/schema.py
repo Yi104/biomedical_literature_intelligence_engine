@@ -71,6 +71,33 @@ def init_sqlite_schema(db_path: str = DEFAULT_DB_PATH) -> str:
         )
 
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS evidence_sentences (
+                evidence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pmid TEXT NOT NULL,
+                task TEXT NOT NULL,
+                sentence_index INTEGER NOT NULL,
+                sentence_text TEXT NOT NULL,
+                source TEXT NOT NULL,
+                UNIQUE(pmid, task, sentence_index),
+                FOREIGN KEY(pmid) REFERENCES papers(pmid)
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS evidence_sentence_mentions (
+                evidence_id INTEGER NOT NULL,
+                mention_id INTEGER NOT NULL,
+                PRIMARY KEY(evidence_id, mention_id),
+                FOREIGN KEY(evidence_id) REFERENCES evidence_sentences(evidence_id),
+                FOREIGN KEY(mention_id) REFERENCES entity_mentions(mention_id)
+            )
+            """
+        )
+
+        conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_entity_mentions_pmid ON entity_mentions(pmid)"
         )
         conn.execute(
@@ -78,6 +105,12 @@ def init_sqlite_schema(db_path: str = DEFAULT_DB_PATH) -> str:
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_entity_mentions_type ON entity_mentions(entity_type)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_evidence_sentences_pmid ON evidence_sentences(pmid)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_evidence_sentences_task ON evidence_sentences(task)"
         )
         conn.commit()
     finally:

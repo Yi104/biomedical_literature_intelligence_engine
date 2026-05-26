@@ -165,24 +165,71 @@ layers need to distinguish the stored evidence from generated explanation.
 When refresh is executed successfully, `refresh` records the source query and
 the row counts added to SQLite.
 
-## Important Evidence Limitation
+## Original v1 Evidence Limitation
 
-The current knowledge base is mention-oriented. It can support queries such as:
+The first L5 v1 milestone was mention-oriented. It supported queries such as:
 
 ```text
 PMID -> BRCA1 -> HGNC:1100
 ```
 
-It does not yet provide a stable sentence-level evidence record such as:
+It did not yet provide a stable sentence-level evidence record such as:
 
 ```text
 PMID -> sentence text -> entity mention -> normalized ID -> citation context
 ```
 
-Therefore, L5 v1 is sufficient for entity-level evidence retrieval and
-workflow orchestration. Before L6 produces citation-grounded biomedical
-summaries, L3/L4 should be extended to store and retrieve sentence-level
-evidence.
+L3-L5 v1.1 addresses this limitation with explicit sentence evidence modes,
+described below. L6 summarization is still not enabled until its evidence-only
+contract is implemented and validated.
+
+## Sentence-Level Evidence Upgrade (L5 v1.1)
+
+L5 remains a deterministic controller, but it can now request richer L4
+evidence through two additional retrieval modes:
+
+| Retrieval mode | Meaning |
+| --- | --- |
+| `evidence_pmid` | Retrieve stored source sentences and linked entities for one PMID |
+| `evidence_normalized_id` | Retrieve stored source sentences linked to one normalized entity ID |
+
+Example request:
+
+```python
+{
+    "task": "bc5cdr",
+    "retrieval_mode": "evidence_pmid",
+    "pmid": "SMOKE001",
+    "search_query": "BRCA1 breast cancer",
+    "allow_refresh": True
+}
+```
+
+Example `evidence` content:
+
+```python
+[
+    {
+        "sentence_text": "BRCA1 is associated with breast cancer.",
+        "entities": [
+            {"entity_text": "BRCA1", "normalized_id": "HGNC:1100"},
+            {"entity_text": "breast cancer", "normalized_id": "MESH:D001943"}
+        ]
+    }
+]
+```
+
+When a refresh runs, the `refresh` summary now includes
+`evidence_sentences_added`. This makes it visible whether new source-text
+evidence was persisted during the update.
+
+This upgrade is not the complete L5 v2. It provides sentence evidence required
+for future summarization; natural-language request planning, provenance-aware
+refresh decisions, and decision traces remain v2 work.
+
+Full cross-layer upgrade record:
+
+- `doc/sentence_level_evidence_upgrade.md`
 
 ## Implementation Files
 
@@ -210,6 +257,7 @@ Initial regression tests should verify:
    model inference.
 4. Add regression tests for decision states and evidence integrity.
 5. Add sentence-level evidence support before enabling L6-generated answers.
+   Completed in the L3-L5 v1.1 upgrade documented below.
 
 ## Definition of Done for L5 v1
 
@@ -225,17 +273,17 @@ Version 1 establishes a reliable controller around entity-level evidence.
 Version 2 should improve evidence quality and request convenience without
 removing the deterministic control boundary.
 
-### v1 Versus v2 Scope
+### Current v1.1 Versus v2 Scope
 
-| Capability | v1 | v2 improvement |
+| Capability | Current v1.1 | v2 improvement |
 | --- | --- | --- |
 | Request input | Explicit query mode and filters | Accept a user question and map it to validated retrieval actions |
 | Refresh behavior | Refresh only when explicitly authorized with a search query | Recommend or execute controlled refresh based on coverage/provenance checks and user settings |
-| Evidence unit | Entity mention rows and linked PMIDs | Sentence-level evidence snippets with citation-ready provenance |
-| Retrieval strategy | One L4 lookup mode per request | Multi-step retrieval across normalized IDs, PMIDs, entity types, and evidence sentences |
+| Evidence unit | Sentence-level source evidence linked to normalized mentions | Add exact character-span links and ingestion provenance for stronger traceability |
+| Retrieval strategy | One L4 lookup mode per request, including explicit evidence modes | Multi-step retrieval across normalized IDs, PMIDs, entity types, and evidence sentences |
 | Result ordering | Preserve deterministic L4 query output | Rank evidence using transparent rules such as entity match, source, date, and duplicate removal |
 | LLM involvement | None in operation selection | Optional LLM parsing or summarization only behind validated actions and evidence constraints |
-| Observability | Status and raw evidence bundle | Decision trace showing selected actions, refresh reason, evidence sources, and unresolved gaps |
+| Observability | Status, raw evidence bundle, and refresh counts | Decision trace showing selected actions, refresh reason, evidence sources, and unresolved gaps |
 
 ### Improvement 1: Natural Language Request Planning
 
@@ -272,12 +320,12 @@ This is not permission for an LLM to run arbitrary code or SQL. The planned
 actions must be validated against an allowlisted set of controller actions
 before execution.
 
-### Improvement 2: Sentence-Level Evidence Bundles
+### Improvement 2: More Precise Sentence-Level Evidence Bundles
 
-Entity mentions alone identify what was extracted, but they do not show the
-text supporting a user-facing explanation.
+Version 1.1 now returns sentence-level evidence. Version 2 should improve
+traceability by adding exact character spans and ingestion provenance.
 
-Version 2 should return evidence items such as:
+The current evidence item shape is designed for content such as:
 
 ```python
 {
@@ -291,13 +339,16 @@ Version 2 should return evidence items such as:
 }
 ```
 
-This requires new L3/L4 capabilities before L5 can expose the data:
+Version 1.1 completed the first three L3/L4 dependencies. The remaining v2
+precision additions are:
 
-| Required dependency | Purpose |
+| Dependency or improvement | Status / purpose |
 | --- | --- |
-| Sentence or evidence table in SQLite | Store reusable text evidence with PMID provenance |
-| Sentence-to-mention linkage | Connect normalized entities to the text that contains them |
-| L4 sentence retrieval function | Return evidence snippets using stable deterministic filters |
+| Sentence or evidence table in SQLite | Implemented in v1.1 |
+| Sentence-to-mention linkage | Implemented in v1.1 using surface-text matching |
+| L4 sentence retrieval function | Implemented in v1.1 using explicit evidence modes |
+| Character-offset linkage | v2 improvement for exact mention placement |
+| Ingestion provenance metadata | v2 improvement for refresh/citation traceability |
 
 ### Improvement 3: Controlled Retrieval Plans
 

@@ -37,7 +37,9 @@ def test_query_kb_contract_for_three_modes(tmp_path):
             }
         ]
     )
-    write_pipeline_outputs_to_sqlite(papers_df, entities_df, db_path=db_path)
+    write_pipeline_outputs_to_sqlite(
+        papers_df, entities_df, db_path=db_path, task="bc5cdr"
+    )
 
     by_pmid = query_kb(mode="pmid", pmid="P100", db_path=db_path)
     assert by_pmid["mode"] == "pmid"
@@ -62,3 +64,18 @@ def test_query_kb_contract_for_three_modes(tmp_path):
     assert by_type_kw["count"] == 1
     assert by_type_kw["results"][0]["pmid"] == "P100"
 
+    by_evidence_pmid = query_kb(
+        mode="evidence_pmid", pmid="P100", task="bc5cdr", db_path=db_path
+    )
+    assert by_evidence_pmid["filters"] == {"pmid": "P100", "task": "bc5cdr"}
+    assert by_evidence_pmid["count"] == 1
+    assert by_evidence_pmid["results"][0]["sentence_text"] == "BRCA1 in breast cancer"
+
+    by_evidence_norm = query_kb(
+        mode="evidence_normalized_id",
+        normalized_id="HGNC:1100",
+        task="bc5cdr",
+        db_path=db_path,
+    )
+    assert by_evidence_norm["count"] == 1
+    assert by_evidence_norm["results"][0]["entities"][0]["normalized_id"] == "HGNC:1100"

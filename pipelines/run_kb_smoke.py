@@ -20,7 +20,9 @@ def main():
         query="BRCA1 breast cancer",
         smoke=True,
     )
-    added = write_pipeline_outputs_to_sqlite(papers_df, entities_df, db_path=db_path)
+    added = write_pipeline_outputs_to_sqlite(
+        papers_df, entities_df, db_path=db_path, task="bc5cdr"
+    )
     print(f"OK: ingest smoke added={added}")
 
     by_pmid = get_mentions_by_pmid("SMOKE001", db_path=db_path)
@@ -37,4 +39,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

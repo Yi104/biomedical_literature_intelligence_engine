@@ -40,19 +40,20 @@ def main():
             smoke=args.smoke,
         )
 
-    added_papers, added_mentions, added_normalized = write_pipeline_outputs_to_sqlite(
+    added_papers, added_mentions, added_normalized, added_sentences = write_pipeline_outputs_to_sqlite(
         papers_df,
         entities_df,
         db_path=args.db_path,
+        task=args.task,
     )
     mode = "smoke" if args.smoke else "live"
     print(
         "OK: sqlite ingest "
         f"task={args.task} mode={mode} "
-        f"papers_added={added_papers} mentions_added={added_mentions} normalized_added={added_normalized}"
+        f"papers_added={added_papers} mentions_added={added_mentions} "
+        f"normalized_added={added_normalized} evidence_sentences_added={added_sentences}"
     )
 
 
 if __name__ == "__main__":
     main()
-

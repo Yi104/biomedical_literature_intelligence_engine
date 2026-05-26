@@ -113,6 +113,7 @@ Open:
 - `pipelines/run_extract_bc5cdr.py`, `pipelines/run_extract_jnlpba.py`: task-specific entrypoints
 - `doc/system_architecture_diagram.md`: quick architecture diagram
 - `doc/end_to_end_data_flow.md`: Mermaid diagrams and tables tracing data from mappings through the L5 evidence bundle
+- `doc/sentence_level_evidence_upgrade.md`: L3-L5 v1.1 upgrade record for citation-ready source sentences
 
 ## Troubleshooting
 
@@ -254,10 +255,17 @@ Query SQLite KB:
 python -m pipelines.run_query_sqlite --mode pmid --pmid SMOKE001
 python -m pipelines.run_query_sqlite --mode normalized_id --normalized_id HGNC:1100
 python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Gene --keyword brca
+python -m pipelines.run_query_sqlite --mode evidence_pmid --pmid SMOKE001 --task bc5cdr
+python -m pipelines.run_query_sqlite --mode evidence_normalized_id --normalized_id HGNC:1100 --task bc5cdr
 ```
 
 Query output contract:
 - JSON payload with `mode`, `filters`, `count`, `results`
+
+Sentence evidence upgrade note:
+- Databases created before sentence evidence support must be populated again
+  by rerunning the relevant `run_ingest_to_sqlite` command before
+  `evidence_pmid` or `evidence_normalized_id` queries return rows.
 
 ## L5 Agent Controller
 
@@ -271,20 +279,21 @@ python -m pipelines.run_agent_query --task bc5cdr --mode normalized_id --normali
 ```
 
 Run a local smoke refresh through the BC5CDR pipeline, write results to
-SQLite, then query the stored evidence:
+SQLite, then query sentence-level evidence:
 
 ```bash
-python -m pipelines.run_agent_query --task bc5cdr --mode pmid --pmid SMOKE001 --query "BRCA1 breast cancer" --allow_refresh --smoke
+python -m pipelines.run_agent_query --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --query "BRCA1 breast cancer" --allow_refresh --smoke
 ```
 
 Controller output includes:
 - `status`, such as `evidence_found`, `insufficient_evidence`, or `refreshed_and_found`
-- `evidence`, containing the L4 retrieval rows
-- `refresh`, containing inserted SQLite row counts when a refresh is run
+- `evidence`, containing mention rows or sentence records with linked entities, depending on mode
+- `refresh`, containing inserted SQLite row counts, including `evidence_sentences_added`, when a refresh is run
 
 Design notes:
 - `src/agent/L5_AGENT_LOGIC.md`
 - `doc/end_to_end_data_flow.md`
+- `doc/sentence_level_evidence_upgrade.md`
 
 ## Module Smoke Checks (Old-school)
 
@@ -314,6 +323,7 @@ Current unit tests focus on:
 - BIO span-to-entity merge behavior
 - Unified task output schema regression (BC5CDR + JNLPBA column contract checks)
 - L5 controller query/refresh decision flow and local smoke ingestion
+- L3-L5 sentence evidence storage, linking, and retrieval contract
 
 Schema contract source:
 - `src/contracts/task_output_schemas.py` (shared definitions)

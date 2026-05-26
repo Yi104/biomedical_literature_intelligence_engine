@@ -102,6 +102,7 @@ def test_explicit_refresh_writes_outputs_and_returns_follow_up_evidence(tmp_path
         "papers_added": 1,
         "mentions_added": 1,
         "normalized_entities_added": 1,
+        "evidence_sentences_added": 1,
     }
 
 
@@ -129,7 +130,7 @@ def test_refresh_failure_returns_no_fabricated_evidence(tmp_path):
 def test_bc5cdr_smoke_refresh_runs_through_l5_controller(tmp_path):
     result = run_agent_controller(
         task="bc5cdr",
-        retrieval_mode="pmid",
+        retrieval_mode="evidence_pmid",
         pmid="SMOKE001",
         search_query="BRCA1 breast cancer",
         allow_refresh=True,
@@ -138,5 +139,12 @@ def test_bc5cdr_smoke_refresh_runs_through_l5_controller(tmp_path):
     )
 
     assert result["status"] == "refreshed_and_found"
-    assert result["count"] == 2
-    assert {item["entity_type"] for item in result["evidence"]} == {"Gene", "Disease"}
+    assert result["count"] == 1
+    assert result["evidence"][0]["sentence_text"] == (
+        "BRCA1 is associated with breast cancer."
+    )
+    assert {item["entity_type"] for item in result["evidence"][0]["entities"]} == {
+        "Gene",
+        "Disease",
+    }
+    assert result["refresh"]["evidence_sentences_added"] == 1

@@ -6,7 +6,7 @@ This document is the implementation checklist for adding the SQLite knowledge ba
 
 Persist Task A/B outputs into a local SQLite database so results are queryable and reproducible.
 
-## Phase 1: Minimal Vertical Slice
+## Phase 1: Minimal Vertical Slice (Original v1 Milestone)
 
 1. Create one SQLite file path convention.
 - Default: `data/processed/kb/biomed_kb.db`
@@ -29,7 +29,7 @@ Persist Task A/B outputs into a local SQLite database so results are queryable a
 - Example target: `python -m pipelines.run_ingest_to_sqlite --task bc5cdr --query "BRCA1 breast cancer" --retmax 5`
 - Query CLI target: `python -m pipelines.run_query_sqlite --mode pmid --pmid SMOKE001`
 
-## Schema v1 (Minimal)
+## Schema v1 (Original Minimal Schema)
 
 ### papers
 - `pmid TEXT PRIMARY KEY`
@@ -84,3 +84,46 @@ Recommended unique key:
   - all PMIDs for one normalized ID
   - all mentions for an entity type filter
 - Unit tests pass for `src/kb` core functions.
+
+## Sentence-Level Evidence Upgrade (L3 v1.1)
+
+The original v1 schema stores entity mentions and normalized identifiers. This
+upgrade adds the source-text evidence needed for later citation-grounded
+responses.
+
+New tables:
+
+| Table | Purpose |
+| --- | --- |
+| `evidence_sentences` | Stores abstract sentences with `pmid`, `task`, sentence order, text, and source |
+| `evidence_sentence_mentions` | Links each stored sentence to normalized mentions it contains |
+
+Write flow:
+
+```text
+papers_df.abstract
+  -> split_abstract_into_sentences(...)
+  -> evidence_sentences
+
+entities_df.entity_text + stored sentences
+  -> surface-text link
+  -> evidence_sentence_mentions
+```
+
+Implementation files:
+
+- `src/kb/evidence.py`: deterministic sentence splitting and current
+  surface-text linking rule
+- `src/kb/schema.py`: new evidence tables and indexes
+- `src/kb/writer.py`: sentence and link persistence
+- `src/kb/query.py`: evidence retrieval by PMID or normalized ID
+
+Current linking decision:
+
+- use extracted mention text to identify the containing sentence
+- defer precise character-span linking until extraction outputs preserve exact
+  source character offsets
+
+Full cross-layer upgrade record:
+
+- `doc/sentence_level_evidence_upgrade.md`

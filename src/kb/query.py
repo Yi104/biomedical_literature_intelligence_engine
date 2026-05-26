@@ -73,3 +73,87 @@ def find_mentions_by_type_and_keyword(
     finally:
         conn.close()
 
+
+def _get_sentence_entities(conn: sqlite3.Connection, evidence_id: int) -> List[Dict]:
+    cur = conn.execute(
+        """
+        SELECT em.entity_type, em.entity_text, em.normalized_id, em.normalized_text,
+               em.normalized_source, em.normalized_score
+        FROM entity_mentions em
+        JOIN evidence_sentence_mentions esm ON esm.mention_id = em.mention_id
+        WHERE esm.evidence_id = ?
+        ORDER BY em.token_start, em.token_end
+        """,
+        (evidence_id,),
+    )
+    return _rows_to_dicts(cur)
+
+
+def get_evidence_sentences_by_pmid(
+    pmid: str,
+    *,
+    task: str | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> List[Dict]:
+    """Return sentence evidence and linked normalized mentions for one paper."""
+    resolved_db_path = init_sqlite_schema(db_path)
+    conn = sqlite3.connect(resolved_db_path)
+    try:
+        params: tuple[str, ...]
+        where = "WHERE es.pmid = ?"
+        params = (pmid,)
+        if task:
+            where += " AND es.task = ?"
+            params = (pmid, task)
+        cur = conn.execute(
+            f"""
+            SELECT es.evidence_id, es.pmid, es.task, es.sentence_index,
+                   es.sentence_text, es.source
+            FROM evidence_sentences es
+            {where}
+            ORDER BY es.task, es.sentence_index
+            """,
+            params,
+        )
+        results = _rows_to_dicts(cur)
+        for result in results:
+            result["entities"] = _get_sentence_entities(conn, result["evidence_id"])
+        return results
+    finally:
+        conn.close()
+
+
+def get_evidence_sentences_by_normalized_id(
+    normalized_id: str,
+    *,
+    task: str | None = None,
+    db_path: str = DEFAULT_DB_PATH,
+) -> List[Dict]:
+    """Return sentences linked to a specified canonical entity identifier."""
+    resolved_db_path = init_sqlite_schema(db_path)
+    conn = sqlite3.connect(resolved_db_path)
+    try:
+        params: tuple[str, ...]
+        task_filter = ""
+        params = (normalized_id,)
+        if task:
+            task_filter = " AND es.task = ?"
+            params = (normalized_id, task)
+        cur = conn.execute(
+            f"""
+            SELECT DISTINCT es.evidence_id, es.pmid, es.task, es.sentence_index,
+                   es.sentence_text, es.source
+            FROM evidence_sentences es
+            JOIN evidence_sentence_mentions esm ON esm.evidence_id = es.evidence_id
+            JOIN entity_mentions em ON em.mention_id = esm.mention_id
+            WHERE em.normalized_id = ?{task_filter}
+            ORDER BY es.pmid, es.task, es.sentence_index
+            """,
+            params,
+        )
+        results = _rows_to_dicts(cur)
+        for result in results:
+            result["entities"] = _get_sentence_entities(conn, result["evidence_id"])
+        return results
+    finally:
+        conn.close()

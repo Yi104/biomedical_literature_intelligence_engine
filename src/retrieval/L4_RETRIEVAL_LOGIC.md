@@ -6,7 +6,8 @@ This document describes the current L4 retrieval layer implemented in `src/retri
 
 L4 is responsible for deterministic retrieval from the SQLite knowledge base (`biomed_kb.db`).
 
-- Input source: tables populated by L3 writer (`papers`, `entity_mentions`, `normalized_entities`)
+- Input source: tables populated by L3 writer (`papers`, `entity_mentions`,
+  `normalized_entities`, `evidence_sentences`, `evidence_sentence_mentions`)
 - Output target: structured retrieval payload for L5 agent and L7 output layers
 
 ## Entry Point
@@ -30,13 +31,23 @@ The service delegates SQL reads to `src/kb/query.py` and enforces one unified re
 - Required args: `entity_type`, `keyword`
 - Behavior: case-insensitive keyword search over `entity_text` and `normalized_text`
 
+4. `evidence_pmid`
+- Required arg: `pmid`
+- Optional arg: `task`
+- Behavior: returns source sentences for one PMID with linked normalized mentions
+
+5. `evidence_normalized_id`
+- Required arg: `normalized_id`
+- Optional arg: `task`
+- Behavior: returns source sentences containing a linked normalized entity
+
 ## Unified Output Contract
 
 All modes return:
 
 ```json
 {
-  "mode": "<pmid|normalized_id|type_keyword>",
+  "mode": "<pmid|normalized_id|type_keyword|evidence_pmid|evidence_normalized_id>",
   "filters": { "...": "..." },
   "count": 0,
   "results": []
@@ -59,6 +70,8 @@ Examples:
 python -m pipelines.run_query_sqlite --mode pmid --pmid SMOKE001
 python -m pipelines.run_query_sqlite --mode normalized_id --normalized_id HGNC:1100
 python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Gene --keyword brca
+python -m pipelines.run_query_sqlite --mode evidence_pmid --pmid SMOKE001 --task bc5cdr
+python -m pipelines.run_query_sqlite --mode evidence_normalized_id --normalized_id HGNC:1100 --task bc5cdr
 ```
 
 ## Validation
@@ -75,10 +88,35 @@ Smoke dependency:
 
 - No pagination yet (`LIMIT/OFFSET` not exposed).
 - No ranking score field yet.
-- Query modes are fixed to three deterministic patterns.
+- Sentence linking currently uses extracted surface-text occurrence, pending
+  exact character offsets from extraction output.
+
+## Sentence-Level Evidence Upgrade (L4 v1.1)
+
+L4 now exposes stored source sentences without replacing the existing
+mention-level query modes. Evidence queries return:
+
+```python
+{
+    "pmid": "SMOKE001",
+    "task": "bc5cdr",
+    "sentence_text": "BRCA1 is associated with breast cancer.",
+    "entities": [
+        {"entity_text": "BRCA1", "normalized_id": "HGNC:1100"}
+    ]
+}
+```
+
+This is the retrieval input required for citation-bound L6 answers. It is
+implemented as an explicit mode so older consumers can continue requesting
+mention rows or PMID lists.
+
+Full cross-layer upgrade record:
+
+- `doc/sentence_level_evidence_upgrade.md`
 
 ## Next Step Candidates
 
 1. Add pagination args (`limit`, `offset`) to `query_kb` and CLI.
 2. Add optional lightweight ranking for `type_keyword` mode.
-3. Add evidence sentence retrieval mode once sentence-level table is added.
+3. Add ingestion provenance and character-offset evidence linking.

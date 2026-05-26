@@ -13,7 +13,13 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         dest="retrieval_mode",
-        choices=["pmid", "normalized_id", "type_keyword"],
+        choices=[
+            "pmid",
+            "normalized_id",
+            "type_keyword",
+            "evidence_pmid",
+            "evidence_normalized_id",
+        ],
         required=True,
     )
     parser.add_argument("--pmid", type=str, default=None)

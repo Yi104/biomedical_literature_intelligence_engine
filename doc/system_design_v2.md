@@ -13,6 +13,7 @@ Quick visual map:
 
 - [System Architecture Diagram](system_architecture_diagram.md)
 - [End-to-End Data Flow](end_to_end_data_flow.md): implemented mapping, ingestion, SQLite, and L5 evidence paths
+- [Sentence-Level Evidence Upgrade](sentence_level_evidence_upgrade.md): L3-L5 v1.1 source-sentence persistence and retrieval
 
 Core constraints:
 
@@ -581,9 +582,9 @@ Status legend:
 | L0 Data (PubMed ingestion) | `PARTIAL` | `src/ingestion/pubmed_client.py` supports PubMed search + abstract fetch + year/journal filters | No persistent ingestion log, no dedup/versioning pipeline, no ingestion provenance stored in DB |
 | L1 Extraction (BioBERT NER) | `DONE` | `src/extraction/ner_infer.py` performs token inference, label mapping, entity span aggregation | No batch inference service interface yet |
 | L2 Normalization | `DONE` | `src/normalization/rule_based.py` loads local HGNC/MeSH/ChEBI alias CSVs, maps IDs/labels, and exposes confidence/source fields | Improve ambiguous-alias handling and version mapping snapshots |
-| L3 Knowledge Base (SQLite) | `DONE` | `src/kb/schema.py`, `writer.py`, and `query.py` create `biomed_kb.db`, persist normalized mentions, and support deterministic reads | Add migration/version tracking and richer sentence/evidence tables |
-| L4 Retrieval | `DONE` | `src/retrieval/sqlite_service.py` exposes a unified SQLite retrieval payload for `pmid`, `normalized_id`, and `type_keyword`; CLI/tests exist | Add pagination, ranking, and sentence-level evidence retrieval |
-| L5 Agent | `DONE` | `src/agent/controller.py` executes deterministic read-only or explicit-refresh evidence flows; `pipelines/run_agent_query.py` and controller regression tests exist | Add validated multi-step planning and decision traces after sentence-level evidence is available |
+| L3 Knowledge Base (SQLite) | `DONE` | `src/kb/schema.py`, `writer.py`, and `query.py` persist normalized mentions plus linked `evidence_sentences` source text | Add migration/version tracking, ingestion provenance, and character-offset sentence links |
+| L4 Retrieval | `DONE` | `src/retrieval/sqlite_service.py` exposes mention lookup plus `evidence_pmid` and `evidence_normalized_id` sentence modes; CLI/tests exist | Add pagination and transparent ranking |
+| L5 Agent | `DONE` | `src/agent/controller.py` executes deterministic read-only or explicit-refresh flows and can return sentence-level evidence bundles | Add validated multi-step planning and decision traces after provenance metadata exists |
 | L6 LLM constrained summarization | `PARTIAL` | `src/llm/router.py` provides provider routing (`none/ollama/openai/anthropic/gemini`) with evidence-only fallback | Need full BYO provider clients, citation-level post-validation, and prompt/version governance |
 | L7 Output layer | `PARTIAL` | `demo/app.py` table display + CSV export | No API JSON contract, no claim-level citation object |
 
@@ -595,7 +596,7 @@ Status legend:
 | `run_ner(...)` | Required | `DONE` | `src/extraction/ner_infer.py::ner`; `src/retrieval/structured_query.py` applies it across retrieved paper abstracts |
 | `update_kb(...)` | Required | `DONE` | `src/kb/writer.py::write_pipeline_outputs_to_sqlite`; `pipelines/run_ingest_to_sqlite.py` |
 | `query_kb(...)` | Required | `DONE` | `src/retrieval/sqlite_service.py::query_kb`; `pipelines/run_query_sqlite.py` |
-| `get_evidence_sentences(...)` | Required | `NOT STARTED` | None |
+| `get_evidence_sentences(...)` | Required | `DONE` | `src/kb/query.py::get_evidence_sentences_by_pmid`, `get_evidence_sentences_by_normalized_id`; exposed via L4 evidence modes |
 
 ### 11.3 Repo Structure Status
 
@@ -614,9 +615,9 @@ Status legend:
 
 ### 11.4 Immediate Next Milestones
 
-1. Extend L3/L4 with sentence-level evidence storage and retrieval needed for citation-bound responses.
+1. Add ingestion provenance and character-offset evidence linkage for stronger citation traceability.
 2. Stabilize the L7 evidence bundle JSON contract used by the agent and any LLM provider.
-3. Add L5 v2 planning/decision traces after provenance and sentence evidence exist.
+3. Add L5 v2 planning/decision traces after provenance metadata exists.
 4. Wire one real BYO LLM provider only after L5/L7 evidence constraints are testable.
 
 ## 12. Reproducibility and Operations Notes
