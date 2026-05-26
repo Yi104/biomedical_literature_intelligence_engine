@@ -112,6 +112,7 @@ Open:
 - `pipelines/run_train.py`, `pipelines/run_eval.py`: runnable training/evaluation entrypoints
 - `pipelines/run_extract_bc5cdr.py`, `pipelines/run_extract_jnlpba.py`: task-specific entrypoints
 - `doc/system_architecture_diagram.md`: quick architecture diagram
+- `doc/end_to_end_data_flow.md`: Mermaid diagrams and tables tracing data from mappings through the L5 evidence bundle
 
 ## Troubleshooting
 
@@ -258,6 +259,33 @@ python -m pipelines.run_query_sqlite --mode type_keyword --entity_type Gene --ke
 Query output contract:
 - JSON payload with `mode`, `filters`, `count`, `results`
 
+## L5 Agent Controller
+
+The L5 v1 controller provides a deterministic evidence workflow over the
+SQLite KB. It does not generate biomedical answers or call an LLM.
+
+Read existing KB evidence only:
+
+```bash
+python -m pipelines.run_agent_query --task bc5cdr --mode normalized_id --normalized_id HGNC:1100
+```
+
+Run a local smoke refresh through the BC5CDR pipeline, write results to
+SQLite, then query the stored evidence:
+
+```bash
+python -m pipelines.run_agent_query --task bc5cdr --mode pmid --pmid SMOKE001 --query "BRCA1 breast cancer" --allow_refresh --smoke
+```
+
+Controller output includes:
+- `status`, such as `evidence_found`, `insufficient_evidence`, or `refreshed_and_found`
+- `evidence`, containing the L4 retrieval rows
+- `refresh`, containing inserted SQLite row counts when a refresh is run
+
+Design notes:
+- `src/agent/L5_AGENT_LOGIC.md`
+- `doc/end_to_end_data_flow.md`
+
 ## Module Smoke Checks (Old-school)
 
 Run each core module directly:
@@ -285,6 +313,7 @@ Current unit tests focus on:
 - Retrieval pipeline assembly (mocked)
 - BIO span-to-entity merge behavior
 - Unified task output schema regression (BC5CDR + JNLPBA column contract checks)
+- L5 controller query/refresh decision flow and local smoke ingestion
 
 Schema contract source:
 - `src/contracts/task_output_schemas.py` (shared definitions)

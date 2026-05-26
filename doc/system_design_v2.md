@@ -12,6 +12,7 @@ The platform converts unstructured PubMed abstracts into structured, queryable e
 Quick visual map:
 
 - [System Architecture Diagram](system_architecture_diagram.md)
+- [End-to-End Data Flow](end_to_end_data_flow.md): implemented mapping, ingestion, SQLite, and L5 evidence paths
 
 Core constraints:
 
@@ -579,10 +580,10 @@ Status legend:
 |---|---|---|---|
 | L0 Data (PubMed ingestion) | `PARTIAL` | `src/ingestion/pubmed_client.py` supports PubMed search + abstract fetch + year/journal filters | No persistent ingestion log, no dedup/versioning pipeline, no ingestion provenance stored in DB |
 | L1 Extraction (BioBERT NER) | `DONE` | `src/extraction/ner_infer.py` performs token inference, label mapping, entity span aggregation | No batch inference service interface yet |
-| L2 Normalization | `NOT STARTED` | None | Need canonicalization, synonym mapping, optional ontology IDs |
-| L3 Knowledge Base (SQLite) | `NOT STARTED` | None (`db/` folder absent) | Need schema + migration + upsert layer |
-| L4 Retrieval | `PARTIAL` | `src/retrieval/structured_query.py` returns DataFrame summaries from runtime pipeline | No SQL structured retrieval, no semantic reranking index |
-| L5 Agent | `NOT STARTED` | None | Need planner/controller + tool-calling policy |
+| L2 Normalization | `DONE` | `src/normalization/rule_based.py` loads local HGNC/MeSH/ChEBI alias CSVs, maps IDs/labels, and exposes confidence/source fields | Improve ambiguous-alias handling and version mapping snapshots |
+| L3 Knowledge Base (SQLite) | `DONE` | `src/kb/schema.py`, `writer.py`, and `query.py` create `biomed_kb.db`, persist normalized mentions, and support deterministic reads | Add migration/version tracking and richer sentence/evidence tables |
+| L4 Retrieval | `DONE` | `src/retrieval/sqlite_service.py` exposes a unified SQLite retrieval payload for `pmid`, `normalized_id`, and `type_keyword`; CLI/tests exist | Add pagination, ranking, and sentence-level evidence retrieval |
+| L5 Agent | `DONE` | `src/agent/controller.py` executes deterministic read-only or explicit-refresh evidence flows; `pipelines/run_agent_query.py` and controller regression tests exist | Add validated multi-step planning and decision traces after sentence-level evidence is available |
 | L6 LLM constrained summarization | `PARTIAL` | `src/llm/router.py` provides provider routing (`none/ollama/openai/anthropic/gemini`) with evidence-only fallback | Need full BYO provider clients, citation-level post-validation, and prompt/version governance |
 | L7 Output layer | `PARTIAL` | `demo/app.py` table display + CSV export | No API JSON contract, no claim-level citation object |
 
@@ -591,33 +592,32 @@ Status legend:
 | Tool | Target in Design | Status | Current Equivalent |
 |---|---|---|---|
 | `search_pubmed(...)` | Required | `DONE` | `src/ingestion/pubmed_client.py::search_pubmed`, `fetch_pubmed_details` |
-| `run_ner(...)` | Required | `PARTIAL` | `src/extraction/ner_infer.py::ner` works for one tokenized text; wrapper for paper batches not implemented |
-| `update_kb(...)` | Required | `NOT STARTED` | None |
-| `query_kb(...)` | Required | `NOT STARTED` | None (current retrieval is in-memory DataFrame logic) |
+| `run_ner(...)` | Required | `DONE` | `src/extraction/ner_infer.py::ner`; `src/retrieval/structured_query.py` applies it across retrieved paper abstracts |
+| `update_kb(...)` | Required | `DONE` | `src/kb/writer.py::write_pipeline_outputs_to_sqlite`; `pipelines/run_ingest_to_sqlite.py` |
+| `query_kb(...)` | Required | `DONE` | `src/retrieval/sqlite_service.py::query_kb`; `pipelines/run_query_sqlite.py` |
 | `get_evidence_sentences(...)` | Required | `NOT STARTED` | None |
 
 ### 11.3 Repo Structure Status
 
 | Planned Module | Status |
 |---|---|
-| `src/ingestion/` | `NOT STARTED` |
-| `src/extraction/` | `NOT STARTED` |
-| `src/normalization/` | `NOT STARTED` |
-| `src/kb/` | `NOT STARTED` |
-| `src/retrieval/` | `NOT STARTED` |
-| `src/agent/` | `NOT STARTED` |
-| `src/llm/` | `NOT STARTED` |
-| `pipelines/` | `NOT STARTED` |
+| `src/ingestion/` | `PARTIAL` |
+| `src/extraction/` | `DONE` |
+| `src/normalization/` | `DONE` |
+| `src/kb/` | `DONE` |
+| `src/retrieval/` | `DONE` |
+| `src/agent/` | `DONE` |
+| `src/llm/` | `PARTIAL` |
+| `pipelines/` | `DONE` |
 | `db/` | `NOT STARTED` |
-| `tests/` | `NOT STARTED` |
+| `tests/` | `DONE` |
 
 ### 11.4 Immediate Next Milestones
 
-1. Create `db/schema.sql` and `src/kb/upsert.py` for `papers`, `sentences`, `entities`, `entity_mentions`, `gene_disease_evidence`.
-2. Add `update_kb(...)` and `query_kb(...)` tool implementations.
-3. Refactor current `src/retrieval/structured_query.py` to persist records and retrieve from SQL instead of in-memory only.
-4. Add minimal `src/agent/controller.py` with deterministic KB-first -> PubMed-refresh decision flow.
-5. Add a constrained summarizer stub (`src/llm/prompts.py`, `src/llm/summarizer.py`) that enforces PMID citations.
+1. Extend L3/L4 with sentence-level evidence storage and retrieval needed for citation-bound responses.
+2. Stabilize the L7 evidence bundle JSON contract used by the agent and any LLM provider.
+3. Add L5 v2 planning/decision traces after provenance and sentence evidence exist.
+4. Wire one real BYO LLM provider only after L5/L7 evidence constraints are testable.
 
 ## 12. Reproducibility and Operations Notes
 

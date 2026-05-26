@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import pandas as pd
+
+from src.agent.controller import run_agent_controller
+from src.kb.writer import write_pipeline_outputs_to_sqlite
+
+
+def _one_paper_and_entity(pmid: str = "P100"):
+    papers_df = pd.DataFrame(
+        [
+            {
+                "pmid": pmid,
+                "title": "Evidence paper",
+                "year": "2024",
+                "journal": "Journal",
+                "abstract": "BRCA1 is associated with breast cancer.",
+            }
+        ]
+    )
+    entities_df = pd.DataFrame(
+        [
+            {
+                "pmid": pmid,
+                "entity_type": "Gene",
+                "entity_text": "BRCA1",
+                "token_start": 0,
+                "token_end": 0,
+                "normalized_id": "HGNC:1100",
+                "normalized_text": "BRCA1",
+                "normalized_source": "rule_alias_v1",
+                "normalized_score": 1.0,
+            }
+        ]
+    )
+    return papers_df, entities_df
+
+
+def test_read_only_request_returns_existing_evidence_without_refresh(tmp_path):
+    db_path = str(tmp_path / "agent_read_only.db")
+    papers_df, entities_df = _one_paper_and_entity()
+    write_pipeline_outputs_to_sqlite(papers_df, entities_df, db_path=db_path)
+
+    def should_not_refresh(*args, **kwargs):
+        raise AssertionError("read-only request must not run refresh")
+
+    result = run_agent_controller(
+        task="bc5cdr",
+        retrieval_mode="normalized_id",
+        normalized_id="HGNC:1100",
+        allow_refresh=False,
+        db_path=db_path,
+        refresh_runner=should_not_refresh,
+    )
+
+    assert result["status"] == "evidence_found"
+    assert result["refreshed"] is False
+    assert result["count"] == 1
+    assert result["evidence"] == [{"pmid": "P100"}]
+    assert result["refresh"] is None
+
+
+def test_read_only_request_reports_insufficient_evidence(tmp_path):
+    result = run_agent_controller(
+        task="bc5cdr",
+        retrieval_mode="normalized_id",
+        normalized_id="HGNC:missing",
+        allow_refresh=False,
+        db_path=str(tmp_path / "agent_empty.db"),
+    )
+
+    assert result["status"] == "insufficient_evidence"
+    assert result["count"] == 0
+    assert result["evidence"] == []
+
+
+def test_explicit_refresh_writes_outputs_and_returns_follow_up_evidence(tmp_path):
+    db_path = str(tmp_path / "agent_refresh.db")
+
+    def fake_refresh(task, **kwargs):
+        assert task == "bc5cdr"
+        assert kwargs["search_query"] == "BRCA1 breast cancer"
+        assert kwargs["smoke"] is False
+        return _one_paper_and_entity(pmid="P200")
+
+    result = run_agent_controller(
+        task="bc5cdr",
+        retrieval_mode="pmid",
+        pmid="P200",
+        search_query="BRCA1 breast cancer",
+        allow_refresh=True,
+        db_path=db_path,
+        refresh_runner=fake_refresh,
+    )
+
+    assert result["status"] == "refreshed_and_found"
+    assert result["refreshed"] is True
+    assert result["count"] == 1
+    assert result["evidence"][0]["normalized_id"] == "HGNC:1100"
+    assert result["refresh"] == {
+        "search_query": "BRCA1 breast cancer",
+        "papers_added": 1,
+        "mentions_added": 1,
+        "normalized_entities_added": 1,
+    }
+
+
+def test_refresh_failure_returns_no_fabricated_evidence(tmp_path):
+    def failing_refresh(*args, **kwargs):
+        raise RuntimeError("pipeline failed")
+
+    result = run_agent_controller(
+        task="bc5cdr",
+        retrieval_mode="pmid",
+        pmid="P300",
+        search_query="new query",
+        allow_refresh=True,
+        db_path=str(tmp_path / "agent_failed.db"),
+        refresh_runner=failing_refresh,
+    )
+
+    assert result["status"] == "refresh_failed"
+    assert result["refreshed"] is False
+    assert result["count"] == 0
+    assert result["evidence"] == []
+    assert result["message"] == "pipeline failed"
+
+
+def test_bc5cdr_smoke_refresh_runs_through_l5_controller(tmp_path):
+    result = run_agent_controller(
+        task="bc5cdr",
+        retrieval_mode="pmid",
+        pmid="SMOKE001",
+        search_query="BRCA1 breast cancer",
+        allow_refresh=True,
+        smoke=True,
+        db_path=str(tmp_path / "agent_smoke.db"),
+    )
+
+    assert result["status"] == "refreshed_and_found"
+    assert result["count"] == 2
+    assert {item["entity_type"] for item in result["evidence"]} == {"Gene", "Disease"}
