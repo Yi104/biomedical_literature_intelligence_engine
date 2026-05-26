@@ -5,6 +5,7 @@ from typing import Tuple
 
 import pandas as pd
 
+from src.normalization.rule_based import normalize_entities_df
 from src.retrieval.structured_query import run_search_ner_pipeline
 
 # Task A: gene-disease evidence extraction.
@@ -57,7 +58,7 @@ def run_bc5cdr_pipeline(
                 },
             ]
         )
-        return papers_df, entities_df
+        return papers_df, normalize_entities_df(entities_df)
 
     return run_search_ner_pipeline(
         query=query,
