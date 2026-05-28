@@ -83,29 +83,42 @@ flowchart TD
 
 ## 3. Extraction, Normalization, and SQLite Ingestion
 
-This diagram is the currently implemented entity/sentence ingestion path,
-validated with the BC5CDR baseline and retained for reuse by BioRED.
+This diagram shows the currently implemented ingestion paths:
+
+- BC5CDR/JNLPBA two-table path (`papers_df`, `entities_df`)
+- BioRED three-table path (`papers_df`, `entities_df`, `relations_df`)
 
 ```mermaid
 flowchart TD
     A["Search query<br/>e.g. cisplatin kidney diseases"] --> B["L0 PubMed ingestion<br/>src/ingestion/pubmed_client.py"]
     B --> C["Paper records<br/>PMID + title + abstract + metadata"]
+    A2["BioRED local PubTator path"] --> B2["L1 BioRED loader<br/>src/extraction/biored_loader.py"]
+    B2 --> C2["BioRED doc/entity/relation records"]
     C --> D{"Task selection"}
     D -->|bc5cdr| E["L1 BC5CDR pipeline<br/>src/extraction/bc5cdr_pipeline.py"]
     D -->|jnlpba| F["L1 JNLPBA pipeline<br/>src/extraction/jnlpba_pipeline.py"]
+    D -->|biored| E2["L1 BioRED pipeline<br/>src/extraction/biored_pipeline.py"]
     E --> G["BioBERT entity mentions"]
     F --> G
+    C2 --> E2
+    E2 --> G2["BioRED entities_df + relations_df"]
     G --> H["L2 normalization<br/>src/normalization/rule_based.py"]
     H --> I["papers_df"]
     H --> J["entities_df<br/>mention + normalized fields"]
+    G2 --> I
+    G2 --> J
+    G2 --> R["relations_df<br/>entity pair + relation provenance fields"]
     I --> K["L3 writer<br/>src/kb/writer.py"]
     J --> K
+    R --> K
     K --> L[("data/processed/kb/biomed_kb.db")]
     L --> M["papers"]
     L --> N["entity_mentions"]
     L --> O["normalized_entities"]
     L --> P["evidence_sentences"]
     L --> Q["evidence_sentence_mentions"]
+    L --> S["entity_relations"]
+    L --> T["relation_provenance"]
 ```
 
 ### Current Pipeline Tables
@@ -114,8 +127,10 @@ flowchart TD
 | --- | --- | --- | --- |
 | PubMed ingestion | Query string and filters | `pmid`, `title`, `year`, `journal`, `abstract` | Written later through `papers_df` |
 | BioBERT NER | Abstract tokens and selected task model | `entity_type`, `entity_text`, `token_start`, `token_end` | Written later through `entities_df` |
+| BioRED loader | Local PubTator documents | entity mentions + document-level relations | Written later through `entities_df` + `relations_df` |
 | Normalization | Each extracted mention | `normalized_text`, `normalized_id`, `normalized_source`, `normalized_score` | Written later through `entities_df` |
-| SQLite writer | `papers_df`, `entities_df` | Rows in mention and sentence-evidence KB tables | Yes |
+| Relation assembly (BioRED) | Relation rows + linked entities | `relation_type`, entity pair IDs/types/text, `evidence_sentence`, `novelty`, `relation_source` | Written later through `relations_df` |
+| SQLite writer | `papers_df`, `entities_df`, optional `relations_df` | Rows in mention/sentence tables and relation/provenance tables | Yes |
 
 ### SQLite Storage Boundary
 
@@ -126,6 +141,8 @@ flowchart TD
 | `normalized_entities` | Distinct resolved canonical entities | `CHEBI:27899`, `cisplatin`, `Chemical` |
 | `evidence_sentences` | Source abstract sentences with task provenance | `Cisplatin is associated with kidney diseases.` |
 | `evidence_sentence_mentions` | Links source sentences to extracted mentions | Evidence sentence linked to `Cisplatin` and `kidney diseases` |
+| `entity_relations` | BioRED relation rows for one PMID/task and normalized entity pair | `Association`, `672 -> D001943`, source `biored_pubtator` |
+| `relation_provenance` | Relation-linked evidence sentence and novelty metadata | Sentence text + novelty `No/Novel` |
 
 Sentence links currently use surface-text occurrence because extraction output
 does not yet preserve exact source character offsets. Character-offset linking

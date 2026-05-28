@@ -60,20 +60,20 @@ data/processed/kb/biomed_kb.db
 
 ## BioRED Primary Task Boundary
 
-`BioRED` is now the intended primary task for gene/protein-disease relation
-evidence. The current L5 controller remains wired only to the existing
-entity/sentence persistence paths (`bc5cdr`, `jnlpba`) because BioRED needs a
-third `relations_df` artifact and a relation table before its evidence can be
-queried honestly.
+`BioRED` is the primary task for gene/protein-disease relation evidence.
+L5 now supports:
 
-Current BioRED preparation:
+- `task="biored"` refresh and read flows
+- relation retrieval modes:
+  - `relation_pmid`
+  - `relation_entity_pair`
 
-- `src/extraction/biored_pipeline.py` provides a smoke-only three-table contract.
-- `doc/biored_primary_task_transition.md` records the migration rationale.
+This is backed by:
 
-Next L5 extension:
-
-- add BioRED routing only after relation persistence and retrieval are implemented.
+- `src/kb/schema.py`: `entity_relations`, `relation_provenance`
+- `src/kb/writer.py`: relation + provenance persistence
+- `src/retrieval/sqlite_service.py`: relation query modes
+- `src/agent/controller.py`: biored-aware refresh and retrieval dispatch
 
 ## Version 1 Request Contract
 
@@ -181,6 +181,50 @@ The response should preserve L4 filters and raw retrieval results. Later
 layers need to distinguish the stored evidence from generated explanation.
 When refresh is executed successfully, `refresh` records the source query and
 the row counts added to SQLite.
+
+For `task="biored"`, `refresh` includes relation counts:
+
+```python
+{
+    "search_query": "...",
+    "papers_added": 0,
+    "mentions_added": 0,
+    "normalized_entities_added": 0,
+    "evidence_sentences_added": 0,
+    "relations_added": 0,
+    "relation_provenance_added": 0
+}
+```
+
+## L5 -> L6 Evidence Bundle Contract (Implemented)
+
+L5 output is converted into one normalized L6 bundle before summarization.
+
+Bundle top-level fields:
+
+- `question`
+- `task`
+- `retrieval_mode`
+- `status`
+- `insufficient_evidence`
+- `count`
+- `pmids`
+- `records`
+- `filters`
+
+Record shapes are mode-aware:
+
+- Relation mode (`relation_pmid`, `relation_entity_pair`): relation pair +
+  provenance sentence/novelty/confidence.
+- Sentence mode (`evidence_pmid`, `evidence_normalized_id`): sentence text +
+  linked entities.
+- Mention mode (`pmid`, `normalized_id`, `type_keyword`): mention-level rows.
+
+Reference:
+
+- `src/llm/evidence_bundle.py`
+- `src/llm/router.py::summarize_agent_result_with_provider`
+- `pipelines/run_l6_summary.py`
 
 ## Original v1 Evidence Limitation
 

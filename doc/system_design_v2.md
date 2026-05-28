@@ -27,7 +27,8 @@ Core constraints:
 
 Task separation:
 
-- `BioRED` is the target dataset for gene/protein-disease relations and is not yet live-wired in this repository
+- `BioRED` is the primary target dataset for gene/protein-disease relations
+- Live BioRED local PubTator ingest + relation persistence + relation retrieval are implemented
 - `BC5CDR` labels chemicals and diseases; it remains an implemented evidence baseline, not the primary gene-disease task
 - `JNLPBA` remains an implemented broader entity-discovery auxiliary dataset
 - The platform shares ingestion, retrieval, KB, and UI layers, but keeps task-specific label spaces and outputs separate
@@ -223,6 +224,49 @@ Integration contract:
 - Output: `{provider, model(optional), summary, citations/evidence}`
 - Fallback: if provider unavailable, return evidence-only mode
 
+Implemented L6 bundle contract (v1):
+
+```json
+{
+  "question": "What is the evidence for BRCA1 and breast cancer?",
+  "task": "biored",
+  "retrieval_mode": "relation_entity_pair",
+  "status": "evidence_found",
+  "insufficient_evidence": false,
+  "count": 1,
+  "pmids": ["10788334"],
+  "records": [
+    {
+      "evidence_type": "relation",
+      "pmid": "10788334",
+      "relation_type": "Association",
+      "entity1_text": "BRCA1",
+      "entity1_type": "GeneOrGeneProduct",
+      "entity1_normalized_id": "672",
+      "entity2_text": "breast or ovarian cancer",
+      "entity2_type": "DiseaseOrPhenotypicFeature",
+      "entity2_normalized_id": "D001943",
+      "evidence_sentence": "...",
+      "novelty": "No",
+      "provenance_source": "biored_relation_v1",
+      "confidence": 1.0
+    }
+  ],
+  "filters": {
+    "entity1_normalized_id": "672",
+    "entity2_normalized_id": "D001943",
+    "task": "biored"
+  }
+}
+```
+
+Reference implementation:
+
+- `src/llm/evidence_bundle.py`
+- `src/llm/router.py::summarize_agent_result_with_provider`
+- `pipelines/run_l6_summary.py`
+- `src/llm/L6_SUMMARIZATION_LOGIC.md`
+
 ### L7. Output Layer
 
 Responsibilities:
@@ -235,6 +279,23 @@ Formats:
 - JSON for APIs
 - Markdown/table for UI
 - CSV for downstream analytics
+
+Implemented L7 v1 contract:
+
+- `question`
+- `status`
+- `task`
+- `answer`
+- `claims[]`
+- `citations[]`
+- `evidence_bundle`
+- `limitations[]`
+
+Reference implementation:
+
+- `src/output/l7_answer.py`
+- `pipelines/run_l7_answer.py`
+- `src/output/L7_OUTPUT_CONTRACT.md`
 
 Task-specific outputs:
 
@@ -518,7 +579,7 @@ repo/
 
 ## 8. Task Definitions
 
-### Primary Task A: Gene-Disease Evidence (BioRED, Scaffolded)
+### Primary Task A: Gene-Disease Evidence (BioRED, Implemented v1)
 
 Goal:
 
@@ -535,8 +596,8 @@ Primary outputs:
 
 Boundary:
 
-- A three-table smoke contract exists (`papers`, `entities`, `relations`).
-- Live BioRED loading, relation persistence, and relation retrieval are not yet implemented.
+- Three-table flow exists and is runnable: `papers`, `entities`, `relations`.
+- Current live path is dataset-loader based (BioRED PubTator annotations), not yet a trained relation inference model.
 
 ### Baseline Task B: Chemical-Disease Evidence (BC5CDR, Implemented)
 
@@ -609,12 +670,12 @@ Status legend:
 
 | Layer | Status | Current Evidence in Repo | Gap to Close |
 |---|---|---|---|
-| L0 Data (PubMed ingestion) | `PARTIAL` | `src/ingestion/pubmed_client.py` supports PubMed search + abstract fetch + year/journal filters | No persistent ingestion log, no dedup/versioning pipeline, no ingestion provenance stored in DB |
-| L1 Extraction (BioBERT NER) | `PARTIAL` | `src/extraction/ner_infer.py` performs token inference for retained entity baselines; `src/extraction/biored_pipeline.py` defines the primary three-table smoke contract | Implement live BioRED entity/relation loading or extraction |
+| L0 Data (PubMed ingestion) | `DONE` | `src/ingestion/pubmed_client.py` supports PubMed search + abstract fetch + year/journal filters and is integrated in runnable task pipelines | Add persistent ingestion log/dedup/versioning if needed |
+| L1 Extraction (BioBERT NER / Dataset Loader) | `PARTIAL` | `src/extraction/ner_infer.py` runs NER baselines; `src/extraction/biored_loader.py` and `src/extraction/biored_pipeline.py` run live BioRED loader-based relation extraction | Add a trained relation inference path beyond loader annotations |
 | L2 Normalization | `DONE` | `src/normalization/rule_based.py` loads local HGNC/MeSH/ChEBI alias CSVs, maps IDs/labels, and exposes confidence/source fields | Improve ambiguous-alias handling and version mapping snapshots |
-| L3 Knowledge Base (SQLite) | `PARTIAL` | `src/kb/schema.py`, `writer.py`, and `query.py` persist normalized mentions plus linked sentence evidence for the retained paths | Add BioRED relation storage and provenance before claiming primary-task KB support |
-| L4 Retrieval | `PARTIAL` | `src/retrieval/sqlite_service.py` exposes mention lookup plus sentence evidence modes for retained paths; CLI/tests exist | Add BioRED gene-disease relation retrieval |
-| L5 Agent | `PARTIAL` | `src/agent/controller.py` executes deterministic read/refresh flows for persisted BC5CDR/JNLPBA data | Route BioRED only after relation persistence/retrieval exist |
+| L3 Knowledge Base (SQLite) | `DONE` | `src/kb/schema.py`, `writer.py`, and `query.py` persist mentions/sentences plus BioRED `entity_relations` and `relation_provenance` | Add migration/version tracking and richer provenance metadata |
+| L4 Retrieval | `DONE` | `src/retrieval/sqlite_service.py` supports mention, sentence evidence, and relation modes (`relation_pmid`, `relation_entity_pair`) | Add pagination/ranking for larger result sets |
+| L5 Agent | `DONE` | `src/agent/controller.py` supports deterministic read/refresh for `bc5cdr`, `jnlpba`, and `biored` relation modes | Add multi-step planning and decision trace export |
 | L6 LLM constrained summarization | `PARTIAL` | `src/llm/router.py` provides provider routing (`none/ollama/openai/anthropic/gemini`) with evidence-only fallback | Need full BYO provider clients, citation-level post-validation, and prompt/version governance |
 | L7 Output layer | `PARTIAL` | `demo/app.py` table display + CSV export | No API JSON contract, no claim-level citation object |
 
@@ -627,7 +688,7 @@ Status legend:
 | `update_kb(...)` | Required | `DONE` | `src/kb/writer.py::write_pipeline_outputs_to_sqlite`; `pipelines/run_ingest_to_sqlite.py` |
 | `query_kb(...)` | Required | `DONE` | `src/retrieval/sqlite_service.py::query_kb`; `pipelines/run_query_sqlite.py` |
 | `get_evidence_sentences(...)` | Required | `DONE` | `src/kb/query.py::get_evidence_sentences_by_pmid`, `get_evidence_sentences_by_normalized_id`; exposed via L4 evidence modes |
-| `get_gene_disease_relations(...)` | Primary BioRED task | `NOT STARTED` | Requires relation table, writer, and retrieval service additions |
+| `get_gene_disease_relations(...)` | Primary BioRED task | `DONE` | `src/kb/query.py::get_relations_by_pmid`, `get_relations_by_entity_pair`; exposed via `src/retrieval/sqlite_service.py` |
 
 ### 11.3 Repo Structure Status
 
@@ -636,9 +697,9 @@ Status legend:
 | `src/ingestion/` | `PARTIAL` |
 | `src/extraction/` | `PARTIAL` |
 | `src/normalization/` | `DONE` |
-| `src/kb/` | `PARTIAL` |
-| `src/retrieval/` | `PARTIAL` |
-| `src/agent/` | `PARTIAL` |
+| `src/kb/` | `DONE` |
+| `src/retrieval/` | `DONE` |
+| `src/agent/` | `DONE` |
 | `src/llm/` | `PARTIAL` |
 | `pipelines/` | `DONE` |
 | `db/` | `NOT STARTED` |
@@ -646,10 +707,10 @@ Status legend:
 
 ### 11.4 Immediate Next Milestones
 
-1. Implement BioRED dataset loading and verify the official entity/relation label mapping.
-2. Add BioRED relation persistence and provenance to SQLite while retaining existing mention/sentence tables.
-3. Add L4/L5 gene-disease relation evidence modes backed by persisted BioRED rows.
-4. Add BioRED regression and end-to-end smoke tests before wiring L6 summarization.
+1. Improve relation-level provenance quality (better sentence selection and optional char-offset links).
+2. Add explicit API contract for L7 claim-level citation objects.
+3. Add provider-specific post-validation and citation checks for L6 summaries.
+4. Add scalable query ergonomics (pagination/ranking) for larger BioRED evidence sets.
 
 ## 12. Reproducibility and Operations Notes
 

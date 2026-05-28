@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 from urllib import request
 
+from src.llm.evidence_bundle import build_evidence_bundle_from_agent_result
 
 @dataclass
 class LLMOptions:
@@ -90,6 +91,18 @@ def summarize_with_provider(
         "error": "unknown_provider",
         "message": "Supported providers: none, ollama, openai, anthropic, gemini",
     }
+
+
+def summarize_agent_result_with_provider(
+    question: str,
+    agent_result: Dict[str, Any],
+    options: LLMOptions,
+) -> Dict[str, Any]:
+    evidence_bundle = build_evidence_bundle_from_agent_result(question, agent_result)
+    result = summarize_with_provider(question, evidence_bundle, options)
+    # Return the exact bundle used for summarization so L6 is auditable.
+    result["bundle"] = evidence_bundle
+    return result
 
 
 def list_supported_providers() -> List[str]:

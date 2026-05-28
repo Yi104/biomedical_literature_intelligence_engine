@@ -8,7 +8,7 @@ relation path is implemented:
 
 | Dataset | Role | Status |
 | --- | --- | --- |
-| `BioRED` | Primary gene/protein-disease relation evidence | Smoke contract added; live pipeline pending |
+| `BioRED` | Primary gene/protein-disease relation evidence | Live local PubTator ingest + relation retrieval implemented |
 | `BC5CDR` | Chemical-disease evidence baseline | Runnable through sentence-evidence retrieval |
 | `JNLPBA` | Broader entity-discovery auxiliary path | Retained |
 
@@ -67,7 +67,7 @@ For detailed explanation, see [LABEL_GUIDE.md](LABEL_GUIDE.md).
 
 - This app does **retrieval + NER extraction**, not ranking biomarkers by biological validity.
 - It uses abstract text only (not full-text articles).
-- BioRED live relation extraction is not implemented yet.
+- BioRED live relation extraction is implemented through local PubTator loader ingestion.
 - BC5CDR entity quality depends on a valid Chemical/Disease model artifact.
 
 ## Quick Start
@@ -158,7 +158,8 @@ Use Python 3.10/3.11 environment as shown above.
 ## Optional: Retrain the NER Model
 
 These commands and artifacts currently cover the retained NER baseline paths.
-The live BioRED relation model/data path is not implemented yet.
+The live BioRED relation data path is implemented via local PubTator ingestion;
+a trained standalone relation inference model is still future work.
 
 ```bash
 python -m pipelines.run_train
@@ -184,9 +185,8 @@ python -m pipelines.run_extract_biored --smoke
 
 Current status:
 - This command establishes the required `papers + entities + relations` output contract.
-- Live BioRED dataset/model ingestion is the next implementation phase.
-- BioRED is not yet connected to `run_agent_query`, because the SQLite
-  relation table is not implemented yet.
+- Live BioRED local PubTator ingestion is implemented via `--data_path`.
+- BioRED relation retrieval is available through `run_agent_query` relation modes.
 
 Baseline Task B, chemical-disease evidence (`BC5CDR` labels chemicals and diseases, not genes):
 
@@ -313,9 +313,8 @@ python -m pipelines.run_agent_query --task bc5cdr --mode evidence_normalized_id 
 ## L5 Agent Controller
 
 The L5 v1 controller provides a deterministic evidence workflow over the
-SQLite KB for the currently persisted BC5CDR/JNLPBA paths. It does not
-generate biomedical answers or call an LLM. BioRED will be wired here after
-relation storage and retrieval are implemented.
+SQLite KB for BC5CDR, JNLPBA, and BioRED relation paths. It does not
+generate biomedical answers by itself; optional summarization is handled by L6.
 
 Read existing KB evidence only:
 
@@ -330,6 +329,12 @@ SQLite, then query sentence-level evidence:
 python -m pipelines.run_agent_query --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --query "cisplatin kidney diseases" --allow_refresh --smoke
 ```
 
+Read existing BioRED relation evidence by normalized entity pair:
+
+```bash
+python -m pipelines.run_agent_query --task biored --mode relation_entity_pair --entity1_normalized_id 672 --entity2_normalized_id D001943 --db_path data/processed/kb/biomed_kb.db
+```
+
 Controller output includes:
 - `status`, such as `evidence_found`, `insufficient_evidence`, or `refreshed_and_found`
 - `evidence`, containing mention rows or sentence records with linked entities, depending on mode
@@ -337,9 +342,32 @@ Controller output includes:
 
 Design notes:
 - `src/agent/L5_AGENT_LOGIC.md`
+- `src/llm/L6_SUMMARIZATION_LOGIC.md`
 - `doc/end_to_end_data_flow.md`
 - `doc/sentence_level_evidence_upgrade.md`
 - `doc/biored_primary_task_transition.md`
+
+## L6 Quickstart
+
+L6 builds a stable evidence bundle from L5 output, then optionally calls a provider.
+
+BioRED relation evidence bundle (no model call, provider=`none`):
+
+```bash
+python -m pipelines.run_l6_summary --task biored --mode relation_entity_pair --entity1_normalized_id 672 --entity2_normalized_id D001943 --question "What is the evidence for BRCA1 and breast cancer?" --provider none --db_path data/processed/kb/biomed_kb.db
+```
+
+BC5CDR sentence evidence bundle (no model call, provider=`none`):
+
+```bash
+python -m pipelines.run_l6_summary --task bc5cdr --mode evidence_pmid --pmid SMOKE001 --question "What evidence links cisplatin and kidney diseases?" --provider none --db_path data/processed/kb/biomed_kb.db
+```
+
+Optional local model summarization with Ollama:
+
+```bash
+python -m pipelines.run_l6_summary --task biored --mode relation_entity_pair --entity1_normalized_id 672 --entity2_normalized_id D001943 --question "Summarize the evidence." --provider ollama --llm_model llama3.1:8b --base_url http://localhost:11434 --db_path data/processed/kb/biomed_kb.db
+```
 
 ## Module Smoke Checks (Old-school)
 
