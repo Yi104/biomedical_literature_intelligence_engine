@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import datetime
 from dataclasses import dataclass, fields
 from typing import Dict, List
 
@@ -31,6 +32,7 @@ class RelationConfig:
     test_pubtator_path: str | None = None
     pair_mode: str = "gene_disease"
     negative_ratio: int = 1
+    correlation_merge_mode: str = "separate"  # separate | merged
     max_length: int = 256
     learning_rate: float = 3e-5
     weight_decay: float = 0.01
@@ -49,6 +51,7 @@ class RelationConfig:
     best_model_dir: str = "outputs/best_model_biored_relations"
     report_path: str = "outputs/reports/biored_relations/test_metrics.json"
     class_weight_mode: str = "none"  # none | balanced
+    run_name: str | None = None
 
 
 def _load_config(config_path: str) -> RelationConfig:
@@ -66,6 +69,7 @@ def _build_split_df(cfg: RelationConfig, split: str):
             split="train",
             pair_mode=cfg.pair_mode,
             negative_ratio=cfg.negative_ratio,
+            correlation_merge_mode=cfg.correlation_merge_mode,
             max_docs=cfg.max_docs_train,
             seed=cfg.seed,
         )
@@ -77,6 +81,7 @@ def _build_split_df(cfg: RelationConfig, split: str):
             # Keep eval split sampling stable so metrics remain comparable
             # across training runs with different train negative ratios.
             negative_ratio=1,
+            correlation_merge_mode=cfg.correlation_merge_mode,
             max_docs=cfg.max_docs_dev,
             seed=cfg.seed + 1,
         )
@@ -88,6 +93,7 @@ def _build_split_df(cfg: RelationConfig, split: str):
         pair_mode=cfg.pair_mode,
         # Keep eval split sampling stable for consistent test metrics.
         negative_ratio=1,
+        correlation_merge_mode=cfg.correlation_merge_mode,
         max_docs=cfg.max_docs_test,
         seed=cfg.seed + 2,
     )
@@ -162,13 +168,35 @@ def dry_run(config_path: str = "configs/biored_relations.json") -> None:
     train_df = _build_split_df(cfg, "train")
     dev_df = _build_split_df(cfg, "validation")
     print(f"OK: relation dry_run config={config_path}")
-    print(f"train_samples={len(train_df)} dev_samples={len(dev_df)} pair_mode={cfg.pair_mode} neg_ratio={cfg.negative_ratio}")
+    print(
+        f"train_samples={len(train_df)} dev_samples={len(dev_df)} "
+        f"pair_mode={cfg.pair_mode} neg_ratio={cfg.negative_ratio} "
+        f"correlation_merge_mode={cfg.correlation_merge_mode}"
+    )
     print(f"train_labels={sorted(set(train_df['label']))[:10]}")
+
+
+def _resolve_output_paths(cfg: RelationConfig, eval_only: bool) -> tuple[str, str]:
+    """
+    Return (model_dir_to_load_or_save, report_path_for_this_run).
+    Training runs are always saved to unique timestamped directories.
+    """
+    if eval_only:
+        return cfg.best_model_dir, cfg.report_path
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_suffix = cfg.run_name.strip() if cfg.run_name else "run"
+    run_id = f"{ts}_{run_suffix}"
+    model_dir = os.path.join(cfg.best_model_dir, run_id)
+    report_root = os.path.dirname(cfg.report_path)
+    report_path = os.path.join(report_root, run_id, "test_metrics.json")
+    return model_dir, report_path
 
 
 def main(config_path: str = "configs/biored_relations.json", eval_only: bool = False) -> None:
     cfg = _load_config(config_path)
     set_seed(cfg.seed)
+    resolved_model_dir, resolved_report_path = _resolve_output_paths(cfg, eval_only=eval_only)
 
     train_df = _build_split_df(cfg, "train")
     dev_df = _build_split_df(cfg, "validation")
@@ -186,7 +214,7 @@ def main(config_path: str = "configs/biored_relations.json", eval_only: bool = F
     test_ds = _to_hf_dataset(test_df, label2id, tokenizer, cfg.max_length) if test_df is not None else dev_ds
 
     if eval_only:
-        model = AutoModelForSequenceClassification.from_pretrained(cfg.best_model_dir)
+        model = AutoModelForSequenceClassification.from_pretrained(resolved_model_dir)
     else:
         model = AutoModelForSequenceClassification.from_pretrained(
             cfg.model_name,
@@ -230,12 +258,13 @@ def main(config_path: str = "configs/biored_relations.json", eval_only: bool = F
 
     if not eval_only:
         trainer.train()
-        trainer.save_model(cfg.best_model_dir)
-        tokenizer.save_pretrained(cfg.best_model_dir)
+        os.makedirs(resolved_model_dir, exist_ok=True)
+        trainer.save_model(resolved_model_dir)
+        tokenizer.save_pretrained(resolved_model_dir)
 
     metrics = trainer.evaluate(test_ds)
-    os.makedirs(os.path.dirname(cfg.report_path), exist_ok=True)
-    with open(cfg.report_path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(resolved_report_path), exist_ok=True)
+    with open(resolved_report_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
     # Detailed diagnostics for class imbalance and confusion analysis.
@@ -257,7 +286,7 @@ def main(config_path: str = "configs/biored_relations.json", eval_only: bool = F
         labels=list(range(len(labels_sorted))),
     )
     details_path = os.path.join(
-        os.path.dirname(cfg.report_path),
+        os.path.dirname(resolved_report_path),
         "test_metrics_detailed.json",
     )
     with open(details_path, "w", encoding="utf-8") as f:
@@ -271,7 +300,35 @@ def main(config_path: str = "configs/biored_relations.json", eval_only: bool = F
             f,
             indent=2,
         )
-    print(f"OK: relation train/eval done report={cfg.report_path} details={details_path}")
+    # Record run manifest for experiment tracking.
+    run_manifest = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "config_path": config_path,
+        "eval_only": eval_only,
+        "model_dir": resolved_model_dir,
+        "report_path": resolved_report_path,
+        "details_path": details_path,
+        "class_weight_mode": cfg.class_weight_mode,
+        "negative_ratio": cfg.negative_ratio,
+        "pair_mode": cfg.pair_mode,
+        "correlation_merge_mode": cfg.correlation_merge_mode,
+        "num_train_epochs": cfg.num_train_epochs,
+        "metrics": metrics,
+    }
+    manifest_path = os.path.join(os.path.dirname(cfg.report_path), "run_manifest.jsonl")
+    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+    with open(manifest_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(run_manifest, ensure_ascii=False) + "\n")
+
+    latest_path = os.path.join(cfg.best_model_dir, "LATEST_MODEL_PATH.txt")
+    os.makedirs(cfg.best_model_dir, exist_ok=True)
+    with open(latest_path, "w", encoding="utf-8") as f:
+        f.write(resolved_model_dir + "\n")
+
+    print(
+        "OK: relation train/eval done "
+        f"model_dir={resolved_model_dir} report={resolved_report_path} details={details_path}"
+    )
 
 
 if __name__ == "__main__":

@@ -97,6 +97,7 @@ def build_biored_relation_samples(
     split: str,
     pair_mode: str = "gene_disease",
     negative_ratio: int = 1,
+    correlation_merge_mode: str = "separate",  # separate | merged
     max_docs: int | None = None,
     seed: int = 42,
 ) -> pd.DataFrame:
@@ -129,6 +130,16 @@ def build_biored_relation_samples(
             t2 = concept_to_repr[c2][1]
             if not _is_allowed_pair(t1, t2, pair_mode):
                 continue
+            relation_label = rel["relation_type"]
+            if correlation_merge_mode == "merged" and relation_label in {
+                "Positive_Correlation",
+                "Negative_Correlation",
+            }:
+                relation_label = "Correlation"
+            elif correlation_merge_mode not in {"separate", "merged"}:
+                raise ValueError(
+                    "correlation_merge_mode must be one of: separate, merged"
+                )
             gold_pairs.add((c1, c2))
             sentence = _select_sentence(abstract, concept_to_repr[c1][0], concept_to_repr[c2][0])
             positives.append(
@@ -141,7 +152,7 @@ def build_biored_relation_samples(
                     tail_text=concept_to_repr[c2][0],
                     tail_type=t2,
                     tail_id=c2,
-                    label=rel["relation_type"],
+                    label=relation_label,
                     split=split,
                 )
             )

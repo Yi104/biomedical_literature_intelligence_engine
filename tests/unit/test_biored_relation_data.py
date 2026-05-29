@@ -66,3 +66,30 @@ def test_build_biored_relation_samples_ratio_two(tmp_path):
     assert len(pos) == 1
     # With available candidates, ratio cap should keep up to 2 negatives.
     assert len(neg) <= 2
+
+
+def test_build_biored_relation_samples_merge_correlation_labels(tmp_path):
+    path = tmp_path / "toy3.PubTator"
+    path.write_text(
+        "\n".join(
+            [
+                "1003|t|Title",
+                "1003|a|BRCA1 is positively correlated with breast cancer.",
+                "1003\t0\t5\tBRCA1\tGeneOrGeneProduct\t672",
+                "1003\t35\t48\tbreast cancer\tDiseaseOrPhenotypicFeature\tD001943",
+                "1003\tPositive_Correlation\t672\tD001943\tNovel",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    df = build_biored_relation_samples(
+        pubtator_path=str(path),
+        split="train",
+        pair_mode="gene_disease",
+        negative_ratio=1,
+        correlation_merge_mode="merged",
+    )
+    assert "Correlation" in set(df["label"])
+    assert "Positive_Correlation" not in set(df["label"])

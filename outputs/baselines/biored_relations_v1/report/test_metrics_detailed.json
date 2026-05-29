@@ -1,0 +1,58 @@
+{
+  "labels": [
+    "Association",
+    "Correlation",
+    "No_Relation"
+  ],
+  "classification_report": {
+    "Association": {
+      "precision": 0.7786885245901639,
+      "recall": 0.6985294117647058,
+      "f1-score": 0.7364341085271318,
+      "support": 272.0
+    },
+    "Correlation": {
+      "precision": 0.4,
+      "recall": 0.09523809523809523,
+      "f1-score": 0.15384615384615385,
+      "support": 21.0
+    },
+    "No_Relation": {
+      "precision": 0.7626112759643917,
+      "recall": 0.8771331058020477,
+      "f1-score": 0.8158730158730159,
+      "support": 293.0
+    },
+    "accuracy": 0.7662116040955631,
+    "macro avg": {
+      "precision": 0.6470999335181852,
+      "recall": 0.5569668709349496,
+      "f1-score": 0.5687177594154339,
+      "support": 586.0
+    },
+    "weighted avg": {
+      "precision": 0.7570791511025451,
+      "recall": 0.7662116040955631,
+      "f1-score": 0.755275836861677,
+      "support": 586.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      190,
+      2,
+      80
+    ],
+    [
+      19,
+      2,
+      0
+    ],
+    [
+      35,
+      1,
+      257
+    ]
+  ],
+  "class_weight_mode": "balanced"
+}
