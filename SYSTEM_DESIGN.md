@@ -1,145 +1,147 @@
-# BioBERT Biomarker NER System Design
+# Biomedical Literature Intelligence System Design
 
-## 1. Goals and Scope
+This is the current project-level system design. The older single-task
+BioBERT NER framing has been superseded by a layered biomedical evidence
+platform.
 
-This project fine-tunes a BioBERT-based NER model to extract biomarker-relevant biomedical entities (for example, chemicals and diseases) from literature-like text.
+Canonical detailed docs:
 
-Current system scope:
-- Inputs: BigBio datasets (currently focused on `bc5cdr`) or user-provided tokenized text.
-- Outputs: token-level entity predictions, evaluation metrics, trained model weights, and tokenizer artifacts.
-- Out of scope: production API service, online retrieval/database integration, active-learning loop, and monitoring/alerting.
+- `doc/system_design_v2.md`: full layered design and progress tracker
+- `doc/end_to_end_data_flow.md`: current data movement through L0-L7
+- `doc/system_architecture_diagram.md`: quick visual map
+
+## 1. Current Objective
+
+Build a reproducible biomedical literature intelligence system that converts
+PubMed abstracts and local biomedical corpora into structured, citation-grounded
+evidence.
+
+Primary task:
+
+- `BioRED`: gene/protein-disease relation evidence
+
+Retained supporting tasks:
+
+- `BC5CDR`: chemical-disease evidence baseline
+- `JNLPBA`: broader biomedical entity-discovery auxiliary path
+
+Core constraints:
+
+- Every evidence record must trace back to a PMID and source sentence when
+  available.
+- LLM output is constrained summarization over retrieved evidence, not a source
+  of biomedical facts.
+- Structured JSON/table outputs are first-class artifacts.
 
 ## 2. Logical Architecture
 
 ```mermaid
-flowchart LR
-    A[Config<br/>configs/base.json] --> B[Data Layer<br/>src/data.py]
-    B --> C[Training Layer<br/>src/train.py]
-    C --> D[Artifacts<br/>outputs/best_model]
-    C --> E[Reports<br/>outputs/reports/test_metrics.json]
-    D --> F[Inference Layer<br/>src/infer.py]
-    D --> G[Evaluation Samples<br/>src/eval.py]
-    F --> H[Demo UI<br/>demo/app.py]
+flowchart TB
+    U["User / CLI / Demo"] --> A["L5 Agent Controller"]
+    A --> R["Task Router"]
+
+    R --> B["BioRED primary path<br/>local PubTator loader + relations"]
+    R --> C["BC5CDR baseline path<br/>PubMed + BioBERT NER"]
+    R --> D["JNLPBA auxiliary path<br/>PubMed + BioBERT NER"]
+
+    B --> N["L2 Normalization"]
+    C --> N
+    D --> N
+
+    N --> K["L3 SQLite KB"]
+    K --> Q["L4 Structured Retrieval"]
+    Q --> S["L6 Evidence Bundle / Optional Summary"]
+    S --> O["L7 Answer Contract / UI / CSV / JSON"]
 ```
 
-## 3. Module Responsibilities
+## 3. Implemented Layers
 
-### 3.1 Configuration Layer
-- File: `configs/base.json`
-- Responsibility: controls model name, dataset, max length, learning rate, epochs, batch sizes, and train/eval/save strategy.
-- Why it matters: keeps experiments configurable instead of hardcoding training behavior.
+| Layer | Current status | Main files |
+| --- | --- | --- |
+| L0 PubMed ingestion | Implemented for PubMed-backed task paths | `src/ingestion/pubmed_client.py` |
+| L1 extraction | Implemented as task-specific wrappers; BioRED uses local PubTator loader annotations and relation rows | `src/extraction/*_pipeline.py`, `src/extraction/biored_loader.py`, `src/extraction/ner_infer.py` |
+| L2 normalization | Implemented rule-based alias lookup over local HGNC/MeSH/ChEBI snapshots | `src/normalization/rule_based.py` |
+| L3 KB | Implemented SQLite schema for papers, mentions, normalized entities, evidence sentences, BioRED relations, and relation provenance | `src/kb/schema.py`, `src/kb/writer.py` |
+| L4 retrieval | Implemented mention, sentence-evidence, and relation retrieval modes | `src/retrieval/sqlite_service.py`, `src/kb/query.py` |
+| L5 agent | Implemented deterministic read/refresh controller | `src/agent/controller.py` |
+| L6 LLM | Partial: evidence bundle and `none`/Ollama path; hosted BYO providers are intentionally not wired yet | `src/llm/evidence_bundle.py`, `src/llm/router.py` |
+| L7 output | Partial but implemented as a stable answer wrapper | `src/output/l7_answer.py`, `pipelines/run_l7_answer.py` |
 
-### 3.2 Data Layer
-- File: `src/data.py`
-- Responsibility:
-  - loads raw datasets from Hugging Face BigBio,
-  - converts entity annotations into token-level BIO tags,
-  - aligns labels to tokenizer subwords (with `-100` for special tokens).
-- Output: tokenized `DatasetDict` ready for Hugging Face `Trainer`.
+## 4. Current Data Contracts
 
-### 3.3 Training Layer
-- File: `src/train.py`
-- Responsibility:
-  - reads config and sets random seeds,
-  - initializes `AutoTokenizer` and `AutoModelForTokenClassification`,
-  - trains/evaluates with Hugging Face `Trainer`,
-  - computes entity-level `precision/recall/f1` via `seqeval`,
-  - saves best model and final test metrics.
-- Main artifacts:
-  - `outputs/best_model/*`
-  - `outputs/reports/test_metrics.json`
+Two-table entity extraction paths:
 
-### 3.4 Inference Layer
-- File: `src/infer.py`
-- Responsibility: loads a trained checkpoint and predicts token-level labels for input tokens.
-- Current status: scaffold is in place, but outputs are still label IDs rather than fully mapped label strings/entities.
+```text
+papers_df + entities_df
+```
 
-### 3.5 Evaluation and Analysis Layer
-- File: `src/eval.py`
-- Responsibility: collects sample predictions from the test split for qualitative error analysis.
-- Current status: useful for quick inspection, but default dataset settings are inconsistent with current data config.
+Used by:
 
-### 3.6 Demo Layer
-- File: `demo/app.py`
-- Responsibility: Streamlit UI for interactive prediction demo.
-- Current status: good for basic workflow demo; not yet production-grade in input validation or result visualization.
+- `BC5CDR`
+- `JNLPBA`
 
-## 4. Key Data Flows
+Three-table relation extraction path:
 
-### 4.1 Training Flow
-1. Read `configs/base.json`.
-2. Load `bc5cdr` and convert to `tokens + ner_tags`.
-3. Tokenize and align labels into `input_ids/attention_mask/labels`.
-4. Train and validate through `Trainer`.
-5. Save best checkpoint to `outputs/best_model`.
-6. Evaluate on test split and write metrics to `outputs/reports/test_metrics.json`.
+```text
+papers_df + entities_df + relations_df
+```
 
-### 4.2 Inference Flow
-1. Load tokenizer and model from `outputs/best_model`.
-2. Encode user-provided token sequence.
-3. Run forward pass to get per-token label IDs.
-4. Map IDs to readable labels and aggregate entity spans (target behavior).
+Used by:
 
-## 5. Repository and Artifact Layout
+- `BioRED`
 
-- `configs/`: experiment configuration.
-- `src/`: core logic (data, training, inference, evaluation, utilities).
-- `outputs/checkpoints/`: intermediate training checkpoints.
-- `outputs/best_model/`: deployable best-model snapshot.
-- `outputs/reports/`: evaluation outputs and analysis files.
-- `demo/`: minimal interactive demo app.
+SQLite persistence writes:
 
-## 6. Current Progress Assessment
+- `papers`
+- `entity_mentions`
+- `normalized_entities`
+- `evidence_sentences`
+- `evidence_sentence_mentions`
+- `entity_relations`
+- `relation_provenance`
 
-Current state is **“MVP training loop completed”**:
-- Completed: data loading, training, evaluation, and model artifact export.
-- Available metric: `eval_f1 ≈ 0.816` (from `outputs/reports/test_metrics.json`).
-- Pending: readable inference outputs, demo default-path consistency, and more structured error analysis/testing.
+## 5. Query Modes
 
-## 7. Recommended Next Steps (Priority Order)
+The L4/L5 retrieval contract currently supports:
 
-1. Standardize label mapping
-- Persist `label2id/id2label` in model config during training, and return label names directly in inference.
+- `pmid`
+- `normalized_id`
+- `type_keyword`
+- `evidence_pmid`
+- `evidence_normalized_id`
+- `relation_pmid`
+- `relation_entity_pair`
 
-2. Close the demo loop
-- Change demo default model path to `outputs/best_model`, add input validation, and optionally highlight entity spans.
+For BioRED relation evidence, the primary mode is:
 
-3. Normalize evaluation workflow
-- Align `eval.py` defaults with current dataset config and add per-entity-class breakdown in reports.
+```bash
+python -m pipelines.run_agent_query \
+  --task biored \
+  --mode relation_entity_pair \
+  --entity1_normalized_id 672 \
+  --entity2_normalized_id D001943 \
+  --db_path data/processed/kb/biomed_kb.db
+```
 
-4. Improve reproducibility
-- Add one-command entry points (train/eval/infer) and minimal tests to validate end-to-end reruns.
+## 6. Current Engineering Gaps
 
-## 8. Simple Mental Model
+The remaining work is no longer "make BioBERT NER train once." The real gaps
+are platform hardening:
 
-You can understand this project as four layers:
-- Data preparation: `src/data.py`
-- Model training: `src/train.py`
-- Model consumption (inference): `src/infer.py`
-- Demo and analysis: `demo/app.py` + `src/eval.py`
+1. Improve BioRED relation provenance quality, especially sentence selection and
+   char-offset links.
+2. Add migration/version tracking for SQLite schema and normalization snapshots.
+3. Add pagination/ranking for larger retrieval result sets.
+4. Wire provider-specific L6 clients only when needed, with citation
+   post-validation.
+5. Harden L7/API output contracts beyond the current CLI/demo wrapper.
 
-The core training pipeline is already working. The next engineering focus is to harden inference outputs and the demo/evaluation experience.
+## 7. Useful Entry Points
 
-## 9. Normalization Mapping Plan
-
-To keep normalization reproducible and auditable, mapping data should live in versioned CSV files:
-
-- `data/normalization/gene_aliases.csv`
-- `data/normalization/disease_aliases.csv`
-- `data/normalization/chemical_aliases.csv`
-
-Shared CSV columns:
-
-- `entity_type, alias, normalized_id, preferred_label`
-
-Column intent:
-
-- `alias`: synonym/surface form from NER output
-- `normalized_id`: stable vocabulary ID (for example HGNC/MeSH/ChEBI IDs)
-- `preferred_label`: canonical label used for display and downstream joins
-
-Recommended data sources:
-
-- Genes: HGNC complete set (symbol + alias fields)
-- Diseases: MeSH descriptor/entry terms (MONDO optional as a secondary source)
-- Chemicals: ChEBI names + synonyms (MeSH supplementary concepts optional)
+```bash
+python -m pipelines.run_extract_biored --smoke
+python -m pipelines.run_ingest_to_sqlite --task biored --smoke
+python -m pipelines.run_agent_query --task biored --mode relation_pmid --pmid SMOKE-BIORED-001 --allow_refresh --smoke --query "BRCA1 breast cancer"
+python -m pipelines.run_l6_summary --provider none --task biored --mode relation_entity_pair --entity1_normalized_id 672 --entity2_normalized_id D001943 --question "What is the evidence?"
+python -m pipelines.run_l7_answer --provider none --task biored --mode relation_entity_pair --entity1_normalized_id 672 --entity2_normalized_id D001943 --question "What is the evidence?"
+```

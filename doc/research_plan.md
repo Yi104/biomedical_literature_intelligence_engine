@@ -22,10 +22,11 @@ implemented evidence baseline uses `BC5CDR`. This corpus is
 annotated for **chemicals**, **diseases**, and chemical-disease relations; it
 does not provide gene entity annotations. Therefore:
 
-- BioRED is the primary path to implement for the research question
+- BioRED is the primary path for the research question; the current repo
+  implements local PubTator-based relation ingestion and retrieval
 - the implemented BC5CDR path validates chemical-disease extraction and
   citation-grounded evidence storage
-- BioRED relation ingestion/evaluation remains implementation work
+- trained BioRED relation inference and full evaluation remain implementation work
 
 This distinction prevents chemical-disease baseline results from being
 reported as gene-disease extraction performance.

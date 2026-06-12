@@ -8,8 +8,8 @@ from src.extraction.biored_loader import load_biored_pubtator_as_dataframes
 from src.normalization.rule_based import normalize_entities_df
 
 # Primary target task: BioRED supports gene/protein and disease entities plus
-# document-level disease-gene relations. The real loader/model path is not
-# implemented yet; smoke mode establishes the correct three-table contract.
+# document-level disease-gene relations. Live mode reads local BioRED PubTator
+# annotations; smoke mode establishes the same three-table contract.
 
 
 def run_biored_pipeline(

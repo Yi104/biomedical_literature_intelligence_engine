@@ -7,7 +7,7 @@ This diagram is the quick orientation map for the platform.
 ```mermaid
 flowchart TB
     U[User Query<br/>gene / disease / keyword] --> A[Agent Router]
-    A -->|primary evidence mode| R[BioRED Workflow<br/>to implement]
+    A -->|primary evidence mode| R[BioRED Workflow<br/>implemented local PubTator path]
     A -->|chemical baseline| B[BC5CDR Workflow<br/>implemented]
     A -->|discovery auxiliary| C[JNLPBA Workflow<br/>implemented]
 
@@ -21,8 +21,10 @@ flowchart TB
         J[Output Layer<br/>UI / CSV / JSON]
     end
 
-    R -. planned BioRED entity/relation pipeline .-> D
-    R -. planned relation persistence/retrieval .-> G
+    R --> K[BioRED Loader<br/>src/extraction/biored_loader.py]
+    K --> F
+    K --> G
+    K --> H
     B --> D --> E --> F --> G --> H --> I --> J
     C --> D --> E --> F --> G --> H --> I --> J
 ```
@@ -61,6 +63,6 @@ flowchart TD
 - `BioBERT NER`: implemented
 - `BC5CDR workflow`: implemented
 - `JNLPBA workflow`: implemented baseline/smoke path
-- `BioRED workflow`: smoke contract only; live loader/relation persistence not yet implemented
+- `BioRED workflow`: local PubTator loader, three-table contract, relation persistence, and relation retrieval implemented
 - `Normalization / KB / Agent layers`: implemented through sentence evidence
-- `LLM layer`: provider skeleton only; grounded summarization remains planned
+- `LLM layer`: evidence bundle plus `none` and Ollama path implemented; hosted BYO provider clients and citation post-validation remain planned

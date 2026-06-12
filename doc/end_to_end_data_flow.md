@@ -19,14 +19,17 @@ external normalization sources
   -> L5 evidence bundle
 ```
 
-Sentence-level citation evidence is now stored and retrievable. LLM-generated
-summaries remain a planned extension, not a current system output.
+Sentence-level citation evidence is stored and retrievable. BioRED relation
+rows and relation provenance are also persisted and queryable. LLM support is
+currently evidence-bundle first: `provider=none` returns structured evidence,
+Ollama can produce local summaries, and hosted BYO provider clients remain
+planned.
 
 Primary-task transition:
 
 | Path | Role | Current status |
 | --- | --- | --- |
-| `BioRED` | Primary gene/protein-disease relation evidence | Three-table smoke contract only; relation persistence next |
+| `BioRED` | Primary gene/protein-disease relation evidence | Local PubTator loader path, three-table contract, relation persistence, and relation retrieval implemented |
 | `BC5CDR` | Chemical-disease evidence baseline | Implemented through L5 sentence evidence |
 | `JNLPBA` | Molecular entity-discovery auxiliary path | Retained |
 
@@ -43,7 +46,8 @@ each other.
 | Extracted mention data | `Cisplatin`, `kidney diseases`, token offsets | BC5CDR model output before/after normalization | Runtime DataFrame, then SQLite `entity_mentions` |
 | Canonical entity data | `CHEBI:27899`, `MESH:D007674` | Reusable normalized entity identities | SQLite `normalized_entities` |
 | Sentence evidence data | `Cisplatin is associated with kidney diseases.` | Citation-ready source text linked to normalized mentions | SQLite `evidence_sentences` + `evidence_sentence_mentions` |
-| L5 controller response | `status`, `filters`, `evidence`, `refresh` | Structured output for UI or future L6 summarization | Returned JSON payload; not separately persisted |
+| L5 controller response | `status`, `filters`, `evidence`, `refresh` | Structured output for UI and L6/L7 wrapping | Returned JSON payload; not separately persisted |
+| L6/L7 response | Evidence bundle, optional summary, claims, citations | Grounded answer contract over L5 evidence | Returned JSON payload; not separately persisted |
 
 ## 2. Normalization Mapping Preparation
 
@@ -174,7 +178,8 @@ flowchart TD
     L --> N
     M --> N
     N --> O["L7 display now"]
-    N -. "future, evidence constrained" .-> P["L6 summarization"]
+    N --> P["L6 evidence bundle<br/>optional constrained summarization"]
+    P --> Q["L7 answer contract"]
 ```
 
 ### L5 Input and Output
@@ -262,7 +267,7 @@ flowchart TD
 | SQLite persistence | Yes, mention and sentence evidence tables | Add ingestion provenance tables and character-offset linking |
 | L5 controller | Yes, deterministic read/refresh and sentence evidence modes | Add validated multi-step plans and decision traces |
 | Citation-ready evidence sentences | Yes, source sentences linked to mentions | Improve sentence segmentation/link precision |
-| LLM answer generation | Router skeleton only | Consume evidence bundle after citation data is available |
+| LLM answer generation | Evidence bundle, `provider=none`, Ollama path, and L7 deterministic wrapper | Add hosted BYO clients and citation post-validation |
 
 ## 6. BioRED Primary Relation Extension
 
@@ -274,19 +279,20 @@ flowchart TD
     A["BioRED document"] --> B["entities_df<br/>Gene/Protein + Disease"]
     A --> C["relations_df<br/>Disease-Gene relation"]
     B --> D["Normalization + sentence evidence"]
-    C --> E["Next: relation persistence"]
+    C --> E["SQLite relation persistence"]
     D --> E
-    E --> F["Next: L4/L5 gene-disease evidence query"]
+    E --> F["L4/L5 gene-disease relation query"]
 ```
 
-Current BioRED smoke contract:
+Current BioRED contract:
 
 ```text
 papers_df + entities_df + relations_df
 ```
 
-It is defined in `src/extraction/biored_pipeline.py`. Relation persistence and
-L5 BioRED routing are intentionally not claimed as complete yet.
+It is defined in `src/extraction/biored_pipeline.py`. Smoke mode provides a
+deterministic fixture; live mode requires `--data_path` to a local BioRED
+PubTator file and uses `src/extraction/biored_loader.py`.
 
 ## 7. File Map
 
