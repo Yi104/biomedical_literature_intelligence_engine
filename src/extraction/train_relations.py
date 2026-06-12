@@ -21,6 +21,7 @@ from transformers import (
 )
 
 from src.extraction.biored_relation_data import build_biored_relation_samples
+from src.extraction.model_registry import resolve_model_for_eval, update_model_pointers
 from src.extraction.train_utils import set_seed
 
 
@@ -43,6 +44,7 @@ class RelationConfig:
     logging_steps: int = 50
     eval_strategy: str = "epoch"
     save_strategy: str = "epoch"
+    save_total_limit: int = 1
     seed: int = 42
     max_docs_train: int | None = None
     max_docs_dev: int | None = None
@@ -182,7 +184,7 @@ def _resolve_output_paths(cfg: RelationConfig, eval_only: bool) -> tuple[str, st
     Training runs are always saved to unique timestamped directories.
     """
     if eval_only:
-        return cfg.best_model_dir, cfg.report_path
+        return resolve_model_for_eval(cfg.best_model_dir), cfg.report_path
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_suffix = cfg.run_name.strip() if cfg.run_name else "run"
@@ -224,7 +226,14 @@ def main(config_path: str = "configs/biored_relations.json", eval_only: bool = F
         )
 
     args = TrainingArguments(
-        output_dir=cfg.checkpoints_dir,
+        output_dir=(
+            cfg.checkpoints_dir
+            if eval_only
+            else os.path.join(
+                cfg.checkpoints_dir,
+                os.path.basename(resolved_model_dir),
+            )
+        ),
         learning_rate=cfg.learning_rate,
         weight_decay=cfg.weight_decay,
         num_train_epochs=cfg.num_train_epochs,
@@ -234,6 +243,7 @@ def main(config_path: str = "configs/biored_relations.json", eval_only: bool = F
         logging_steps=cfg.logging_steps,
         eval_strategy=cfg.eval_strategy,
         save_strategy=cfg.save_strategy,
+        save_total_limit=cfg.save_total_limit,
         load_best_model_at_end=True,
         metric_for_best_model="f1_macro",
         greater_is_better=True,
@@ -320,14 +330,18 @@ def main(config_path: str = "configs/biored_relations.json", eval_only: bool = F
     with open(manifest_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(run_manifest, ensure_ascii=False) + "\n")
 
-    latest_path = os.path.join(cfg.best_model_dir, "LATEST_MODEL_PATH.txt")
-    os.makedirs(cfg.best_model_dir, exist_ok=True)
-    with open(latest_path, "w", encoding="utf-8") as f:
-        f.write(resolved_model_dir + "\n")
+    promoted_to_best = False
+    if not eval_only:
+        promoted_to_best = update_model_pointers(
+            model_root=cfg.best_model_dir,
+            model_dir=resolved_model_dir,
+            metrics=metrics,
+        )
 
     print(
         "OK: relation train/eval done "
-        f"model_dir={resolved_model_dir} report={resolved_report_path} details={details_path}"
+        f"model_dir={resolved_model_dir} report={resolved_report_path} "
+        f"details={details_path} promoted_to_best={promoted_to_best}"
     )
 
 

@@ -157,9 +157,9 @@ Use Python 3.10/3.11 environment as shown above.
 
 ## Optional: Retrain the NER Model
 
-These commands and artifacts currently cover the retained NER baseline paths.
-The live BioRED relation data path is implemented via local PubTator ingestion;
-a trained standalone relation inference model is still future work.
+These commands and artifacts cover the retained NER baseline paths. BioRED
+relation training is also implemented and has a frozen three-class baseline.
+Using that trained relation model for live PubMed inference remains future work.
 
 ```bash
 python -m pipelines.run_train
@@ -174,6 +174,18 @@ Artifacts:
 Config files:
 - `configs/bc5cdr.json`
 - `configs/jnlpba.json`
+
+BioRED relation training:
+
+```bash
+python -m pipelines.run_train_relations
+```
+
+Model pointers:
+- `LATEST_MODEL_PATH.txt`: most recently completed training run
+- `BEST_MODEL_PATH.txt`: best run by macro F1, then micro F1, then lower loss
+
+Each run gets its own checkpoint directory and retains at most one checkpoint.
 
 ## Task Entrypoints
 

@@ -16,6 +16,7 @@
   "logging_steps": 50,
   "eval_strategy": "epoch",
   "save_strategy": "epoch",
+  "save_total_limit": 1,
   "seed": 42,
   "max_docs_train": null,
   "max_docs_dev": null,
