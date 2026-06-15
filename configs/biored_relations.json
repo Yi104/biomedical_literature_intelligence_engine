@@ -2,7 +2,7 @@
   "model_name": "dmis-lab/biobert-base-cased-v1.1",
   "train_pubtator_path": "data/raw/biored/BioRED/Train.PubTator",
   "dev_pubtator_path": "data/raw/biored/BioRED/Dev.PubTator",
-  "test_pubtator_path": null,
+  "test_pubtator_path": "data/raw/biored/BioRED/Test.PubTator",
   "pair_mode": "gene_disease",
   "correlation_merge_mode": "merged",
   "negative_ratio": 2,

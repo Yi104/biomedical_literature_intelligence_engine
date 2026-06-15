@@ -242,7 +242,7 @@ def write_pipeline_outputs_with_relations_to_sqlite(
                     relation_id,
                     str(row.get("evidence_sentence", "")),
                     str(row.get("novelty", "")),
-                    "biored_relation_v1",
+                    relation_source,
                     float(row.get("confidence", 1.0)),
                 ),
             )

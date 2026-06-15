@@ -128,6 +128,38 @@ Map prediction output to existing relation contract:
 
 Then reuse existing L3/L4/L5/L6/L7 path already implemented.
 
+## 7A. Implemented 4A Inference Mode
+
+The first inference milestone is intentionally limited:
+
+```text
+local BioRED PubTator entities
+  -> enumerate gene/protein-disease candidate pairs
+  -> classify each pair with the trained relation model
+  -> emit relations_df
+```
+
+Implemented files:
+
+- `src/extraction/biored_relation_infer.py`
+- `src/extraction/biored_pipeline.py`
+- `pipelines/run_extract_biored.py`
+
+Run:
+
+```bash
+python -m pipelines.run_extract_biored \
+  --data_path data/raw/biored/BioRED/Test.PubTator \
+  --max_docs 5 \
+  --relation_mode model
+```
+
+Boundary:
+
+- 4A does not perform BioRED NER on new PubMed abstracts.
+- It assumes entities already exist from local BioRED PubTator annotations.
+- Fully live PubMed relation inference requires a BioRED-compatible gene/disease entity extraction path.
+
 ## 8. Execution Plan (Concrete)
 
 1. Build dataset constructor:
@@ -143,6 +175,11 @@ Then reuse existing L3/L4/L5/L6/L7 path already implemented.
 
 4. Add quick smoke test:
    - very small sample subset to validate data and forward pass.
+
+5. Add 4A inference:
+   - `src/extraction/biored_relation_infer.py`
+   - `relation_mode=model`
+   - persist predicted rows through existing SQLite relation writer.
 
 ## 9. First Experiments to Run
 

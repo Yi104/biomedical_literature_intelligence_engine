@@ -105,6 +105,8 @@ def _default_refresh_runner(
     model_path: str | None,
     smoke: bool,
     data_path: str | None,
+    relation_mode: str,
+    confidence_threshold: float,
 ) -> Tuple[pd.DataFrame, ...]:
     """Run an existing extraction/normalization task without duplicating task logic."""
     pipeline_args: Dict[str, Any] = {
@@ -113,7 +115,12 @@ def _default_refresh_runner(
         "max_length": max_length,
         "smoke": smoke,
     }
-    if model_path is not None:
+    if task == "biored":
+        pipeline_args["relation_mode"] = relation_mode
+        pipeline_args["confidence_threshold"] = confidence_threshold
+        if model_path is not None:
+            pipeline_args["relation_model_path"] = model_path
+    elif model_path is not None:
         pipeline_args["model_path"] = model_path
     if data_path is not None:
         pipeline_args["data_path"] = data_path
@@ -137,6 +144,8 @@ def run_agent_controller(
     allow_refresh: bool = False,
     smoke: bool = False,
     data_path: str | None = None,
+    relation_mode: str = "gold",
+    confidence_threshold: float = 0.5,
     db_path: str = DEFAULT_DB_PATH,
     refresh_runner: RefreshRunner | None = None,
 ) -> Dict[str, Any]:
@@ -172,6 +181,8 @@ def run_agent_controller(
                 model_path=model_path,
                 smoke=smoke,
                 data_path=data_path,
+                relation_mode=relation_mode,
+                confidence_threshold=confidence_threshold,
             )
             if resolved_task == "biored":
                 papers_df, entities_df, relations_df = runner_output

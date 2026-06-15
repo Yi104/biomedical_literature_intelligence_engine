@@ -8,7 +8,7 @@ relation path is implemented:
 
 | Dataset | Role | Status |
 | --- | --- | --- |
-| `BioRED` | Primary gene/protein-disease relation evidence | Live local PubTator ingest + relation retrieval implemented |
+| `BioRED` | Primary gene/protein-disease relation evidence | Local PubTator gold relations and model-predicted relation mode implemented |
 | `BC5CDR` | Chemical-disease evidence baseline | Runnable through sentence-evidence retrieval |
 | `JNLPBA` | Broader entity-discovery auxiliary path | Retained |
 
@@ -45,8 +45,9 @@ The current runnable BC5CDR/JNLPBA UI paths return two tables:
 Both tables can be downloaded as CSV.
 
 The BioRED primary-task contract adds a third `relations` table for
-gene/protein-disease evidence. That table is available in the smoke contract
-now and will reach the UI after relation persistence and retrieval are added.
+gene/protein-disease evidence. The table can now be populated from either
+gold PubTator relation rows or the trained BioRED relation classifier over
+local PubTator entities.
 
 ## How to Interpret Labels (`entity_type` vs `label_id`)
 
@@ -67,7 +68,8 @@ For detailed explanation, see [LABEL_GUIDE.md](LABEL_GUIDE.md).
 
 - This app does **retrieval + NER extraction**, not ranking biomarkers by biological validity.
 - It uses abstract text only (not full-text articles).
-- BioRED live relation extraction is implemented through local PubTator loader ingestion.
+- BioRED 4A relation inference uses local PubTator entities and predicts relation labels with the trained classifier.
+- BioRED live PubMed entity detection for new abstracts is still future work.
 - BC5CDR entity quality depends on a valid Chemical/Disease model artifact.
 
 ## Quick Start
@@ -198,6 +200,13 @@ python -m pipelines.run_extract_biored --smoke
 Current status:
 - This command establishes the required `papers + entities + relations` output contract.
 - Live BioRED local PubTator ingestion is implemented via `--data_path`.
+- BioRED 4A model mode predicts relation rows from local PubTator entities:
+  ```bash
+  python -m pipelines.run_extract_biored \
+    --data_path data/raw/biored/BioRED/Test.PubTator \
+    --max_docs 5 \
+    --relation_mode model
+  ```
 - BioRED relation retrieval is available through `run_agent_query` relation modes.
 
 Baseline Task B, chemical-disease evidence (`BC5CDR` labels chemicals and diseases, not genes):

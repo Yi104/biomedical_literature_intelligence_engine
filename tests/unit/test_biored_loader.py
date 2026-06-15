@@ -32,3 +32,4 @@ def test_biored_pubtator_loader_builds_three_tables(tmp_path):
     assert relations_df.iloc[0]["entity1_normalized_id"] == "672"
     assert relations_df.iloc[0]["entity2_normalized_id"] == "D001943"
     assert relations_df.iloc[0]["novelty"] == "Novel"
+    assert relations_df.iloc[0]["confidence"] == 1.0

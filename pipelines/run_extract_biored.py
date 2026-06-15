@@ -27,6 +27,9 @@ def main() -> None:
         action="store_true",
         help="Run the deterministic BioRED contract check without a live model.",
     )
+    parser.add_argument("--relation_mode", choices=["gold", "model"], default="gold")
+    parser.add_argument("--relation_model_path", type=str, default=None)
+    parser.add_argument("--confidence_threshold", type=float, default=0.5)
     args = parser.parse_args()
 
     papers_df, entities_df, relations_df = run_biored_pipeline(
@@ -34,10 +37,13 @@ def main() -> None:
         smoke=args.smoke,
         data_path=args.data_path,
         max_docs=args.max_docs,
+        relation_mode=args.relation_mode,
+        relation_model_path=args.relation_model_path,
+        confidence_threshold=args.confidence_threshold,
     )
     print(
         "OK: biored "
-        f"mode={'smoke' if args.smoke else 'live'} "
+        f"mode={'smoke' if args.smoke else 'live'} relation_mode={args.relation_mode} "
         f"papers={len(papers_df)} entities={len(entities_df)} relations={len(relations_df)}"
     )
     if args.smoke:

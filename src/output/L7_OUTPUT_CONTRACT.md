@@ -20,6 +20,10 @@ L7 implementation:
 - `src/output/l7_answer.py`
 - `pipelines/run_l7_answer.py`
 
+L7 does not care whether BioRED relations came from gold PubTator rows or
+4A model predictions. That provenance is carried inside the evidence bundle as
+`provenance_source` and `confidence`.
+
 ## Contract
 
 ```json

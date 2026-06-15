@@ -41,4 +41,5 @@ BIORED_RELATIONS_COLUMNS_V1: list[str] = [
     "evidence_sentence",
     "relation_source",
     "novelty",
+    "confidence",
 ]

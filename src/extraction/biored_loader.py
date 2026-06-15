@@ -158,6 +158,7 @@ def load_biored_pubtator_as_dataframes(
                     ),
                     "relation_source": "biored_pubtator",
                     "novelty": rel.novelty,
+                    "confidence": 1.0,
                 }
             )
 
@@ -206,6 +207,7 @@ def load_biored_pubtator_as_dataframes(
                 "evidence_sentence",
                 "relation_source",
                 "novelty",
+                "confidence",
             ]
         )
 
@@ -223,6 +225,7 @@ def load_biored_pubtator_as_dataframes(
             "evidence_sentence",
             "relation_source",
             "novelty",
+            "confidence",
         ]
     ]
     return papers_df, entities_df, relations_df

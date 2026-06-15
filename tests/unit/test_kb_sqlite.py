@@ -196,6 +196,7 @@ def test_relation_writer_and_queries_roundtrip(tmp_path):
                 "evidence_sentence": "BRCA1 is associated with breast cancer.",
                 "relation_source": "biored_pubtator",
                 "novelty": "Novel",
+                "confidence": 0.9,
             }
         ]
     )
@@ -215,6 +216,8 @@ def test_relation_writer_and_queries_roundtrip(tmp_path):
     assert len(rows_by_pmid) == 1
     assert rows_by_pmid[0]["entity1_normalized_id"] == "672"
     assert rows_by_pmid[0]["provenance"][0]["novelty"] == "Novel"
+    assert rows_by_pmid[0]["provenance"][0]["provenance_source"] == "biored_pubtator"
+    assert rows_by_pmid[0]["provenance"][0]["confidence"] == 0.9
 
     rows_by_pair = get_relations_by_entity_pair(
         "672", "D001943", task="biored", db_path=db_path

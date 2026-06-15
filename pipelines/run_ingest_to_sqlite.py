@@ -20,6 +20,9 @@ def main():
     parser.add_argument("--max_length", type=int, default=256)
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--data_path", type=str, default=None)
+    parser.add_argument("--relation_mode", choices=["gold", "model"], default="gold")
+    parser.add_argument("--relation_model_path", type=str, default=None)
+    parser.add_argument("--confidence_threshold", type=float, default=0.5)
     parser.add_argument("--db_path", type=str, default=DEFAULT_DB_PATH)
     parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
@@ -77,6 +80,9 @@ def main():
             smoke=args.smoke,
             data_path=args.data_path,
             max_docs=args.retmax,
+            relation_mode=args.relation_mode,
+            relation_model_path=args.relation_model_path or args.model_path,
+            confidence_threshold=args.confidence_threshold,
         )
         summary = write_pipeline_outputs_with_relations_to_sqlite(
             papers_df,
@@ -88,7 +94,7 @@ def main():
         mode = "smoke" if args.smoke else "live"
         print(
             "OK: sqlite ingest "
-            f"task={args.task} mode={mode} "
+            f"task={args.task} mode={mode} relation_mode={args.relation_mode} "
             f"papers_added={summary['papers_added']} "
             f"mentions_added={summary['mentions_added']} "
             f"normalized_added={summary['normalized_entities_added']} "

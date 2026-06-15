@@ -75,6 +75,13 @@ This is backed by:
 - `src/retrieval/sqlite_service.py`: relation query modes
 - `src/agent/controller.py`: biored-aware refresh and retrieval dispatch
 
+BioRED refresh can now use two relation sources:
+
+- `relation_mode="gold"`: persist local PubTator relation annotations.
+- `relation_mode="model"`: persist trained classifier predictions over local
+  PubTator entities. This is the 4A inference path; it is not full live PubMed
+  BioRED NER.
+
 ## Version 1 Request Contract
 
 The controller should begin with explicit request parameters instead of
@@ -116,6 +123,8 @@ Recommended initial fields:
 | `search_query` | For refresh | PubMed query used to run a new extraction/ingestion workflow |
 | `retmax` | Optional | Maximum papers retrieved during refresh |
 | `allow_refresh` | Yes | Whether L5 is allowed to modify the local knowledge base |
+| `relation_mode` | BioRED refresh only | `gold` or `model` |
+| `confidence_threshold` | BioRED model refresh only | Minimum softmax confidence for model-predicted relation rows |
 
 ## Version 1 Decision Flow
 

@@ -34,6 +34,8 @@ def main() -> None:
     parser.add_argument("--retmax", type=int, default=5)
     parser.add_argument("--max_length", type=int, default=256)
     parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--relation_mode", choices=["gold", "model"], default="gold")
+    parser.add_argument("--confidence_threshold", type=float, default=0.5)
     parser.add_argument(
         "--data_path",
         type=str,
@@ -69,6 +71,8 @@ def main() -> None:
         allow_refresh=args.allow_refresh,
         smoke=args.smoke,
         data_path=args.data_path,
+        relation_mode=args.relation_mode,
+        confidence_threshold=args.confidence_threshold,
         db_path=args.db_path,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -5,6 +5,7 @@ from typing import Tuple
 import pandas as pd
 
 from src.extraction.biored_loader import load_biored_pubtator_as_dataframes
+from src.extraction.biored_relation_infer import predict_biored_relations
 from src.normalization.rule_based import normalize_entities_df
 
 # Primary target task: BioRED supports gene/protein and disease entities plus
@@ -17,6 +18,11 @@ def run_biored_pipeline(
     smoke: bool = False,
     data_path: str | None = None,
     max_docs: int | None = None,
+    retmax: int | None = None,
+    max_length: int = 256,
+    relation_mode: str = "gold",
+    relation_model_path: str | None = None,
+    confidence_threshold: float = 0.5,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Return BioRED-shaped papers, entities, and relations.
@@ -24,16 +30,33 @@ def run_biored_pipeline(
     BioRED differs from the current BC5CDR/JNLPBA wrappers because a primary
     gene-disease evidence task must carry relation rows, not only NER mentions.
     """
+    if max_docs is None:
+        max_docs = retmax
     if not smoke:
         if not data_path:
             raise FileNotFoundError(
                 "BioRED live mode requires --data_path to a local PubTator file "
                 "(for example Train.PubTator or Dev.PubTator)."
             )
-        return load_biored_pubtator_as_dataframes(
+        papers_df, entities_df, relations_df = load_biored_pubtator_as_dataframes(
             pubtator_path=data_path,
             max_docs=max_docs,
         )
+        if relation_mode == "gold":
+            return papers_df, entities_df, relations_df
+        if relation_mode == "model":
+            return (
+                papers_df,
+                entities_df,
+                predict_biored_relations(
+                    papers_df=papers_df,
+                    entities_df=entities_df,
+                    model_path=relation_model_path,
+                    max_length=max_length,
+                    confidence_threshold=confidence_threshold,
+                ),
+            )
+        raise ValueError("relation_mode must be one of: gold, model")
 
     papers_df = pd.DataFrame(
         [
@@ -82,6 +105,7 @@ def run_biored_pipeline(
                 "evidence_sentence": "BRCA1 is associated with breast cancer.",
                 "relation_source": "smoke_contract_only",
                 "novelty": "Novel",
+                "confidence": 1.0,
             }
         ]
     )

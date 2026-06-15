@@ -85,6 +85,12 @@ Use:
 python -m pipelines.run_l6_summary --task biored --mode relation_entity_pair --entity1_normalized_id 672 --entity2_normalized_id D001943 --question "What is the evidence for BRCA1 and breast cancer?" --provider none --db_path data/processed/kb/biomed_kb.db
 ```
 
+For BioRED 4A model-predicted relation refresh, add:
+
+```bash
+--allow_refresh --data_path data/raw/biored/BioRED/Test.PubTator --relation_mode model
+```
+
 ## Current Limitations
 
 - No claim-level citation validator yet.

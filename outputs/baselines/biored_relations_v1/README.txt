@@ -29,3 +29,8 @@ Key Config:
 Notes:
 - This baseline freezes the first stable 3-class relation model.
 - Use this directory as comparison target for future experiments.
+
+True Test Metrics: (on June.15th)
+- eval_f1_macro: 0.5762780398575141
+- eval_f1_micro: 0.7440677966101695
+- eval_loss: 2.092841625213623

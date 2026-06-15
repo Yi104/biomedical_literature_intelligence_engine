@@ -120,7 +120,7 @@ Implementation files:
 - `src/kb/writer.py`: sentence and link persistence
 - `src/kb/query.py`: evidence retrieval by PMID or normalized ID
 
-## BioRED Primary Relation Extension (Next)
+## BioRED Primary Relation Extension
 
 `BioRED` is the primary target for gene/protein-disease evidence. Unlike the
 two existing NER paths, it must retain curated or predicted relation records:
@@ -130,15 +130,19 @@ papers_df + entities_df + relations_df
 ```
 
 The existing SQLite tables remain useful for normalized mentions and selected
-source sentences. Before BioRED can be exposed through L4/L5, add:
+source sentences. BioRED relation support adds:
 
 | Addition | Purpose |
 | --- | --- |
 | `entity_relations` table | Persist disease-gene relation pairs and relation source |
-| Relation-to-sentence linkage | Record the application-selected supporting sentence |
+| `relation_provenance` table | Store evidence sentence, novelty, provenance source, and confidence |
 | Relation query helpers | Retrieve gene-disease evidence with PMID provenance |
 
-The current smoke contract is defined in `src/extraction/biored_pipeline.py`.
+The current three-table contract is defined in `src/extraction/biored_pipeline.py`.
+Relation rows can come from:
+
+- `relation_mode=gold`: local BioRED PubTator relation annotations
+- `relation_mode=model`: trained classifier predictions over local BioRED PubTator entities
 
 Current linking decision:
 

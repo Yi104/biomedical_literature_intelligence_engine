@@ -291,8 +291,12 @@ papers_df + entities_df + relations_df
 ```
 
 It is defined in `src/extraction/biored_pipeline.py`. Smoke mode provides a
-deterministic fixture; live mode requires `--data_path` to a local BioRED
-PubTator file and uses `src/extraction/biored_loader.py`.
+deterministic fixture. Local live mode requires `--data_path` to a BioRED
+PubTator file and supports two relation sources:
+
+- `relation_mode=gold`: use PubTator relation annotations.
+- `relation_mode=model`: use PubTator entities and predict relations with
+  `src/extraction/biored_relation_infer.py`.
 
 ## 7. File Map
 
