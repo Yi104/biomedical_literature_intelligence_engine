@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 
 from src.agent.controller import run_agent_controller
 from src.kb.schema import DEFAULT_DB_PATH
@@ -53,7 +54,12 @@ def main() -> None:
         action="store_true",
         help="Use deterministic local task output when a refresh is run.",
     )
+    parser.add_argument("--log_level", type=str, default="INFO")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
     result = run_agent_controller(
         task=args.task,

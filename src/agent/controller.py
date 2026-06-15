@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable, Dict, Tuple
 
 import pandas as pd
@@ -11,6 +12,8 @@ from src.kb.writer import (
 )
 from src.retrieval.sqlite_service import query_kb
 from src.retrieval.task_router import run_task
+
+logger = logging.getLogger(__name__)
 
 RefreshRunner = Callable[..., Tuple[pd.DataFrame, ...]]
 
@@ -124,6 +127,14 @@ def _default_refresh_runner(
         pipeline_args["model_path"] = model_path
     if data_path is not None:
         pipeline_args["data_path"] = data_path
+    logger.info(
+        "L5 refresh runner start: task=%s relation_mode=%s retmax=%d smoke=%s data_path=%s",
+        task,
+        relation_mode,
+        retmax,
+        smoke,
+        data_path,
+    )
     return run_task(task, **pipeline_args)
 
 
@@ -173,6 +184,12 @@ def run_agent_controller(
     if allow_refresh:
         runner = refresh_runner or _default_refresh_runner
         try:
+            logger.info(
+                "L5 refresh requested: task=%s retrieval_mode=%s relation_mode=%s",
+                resolved_task,
+                resolved_mode,
+                relation_mode,
+            )
             runner_output = runner(
                 resolved_task,
                 search_query=str(search_query),
@@ -186,6 +203,12 @@ def run_agent_controller(
             )
             if resolved_task == "biored":
                 papers_df, entities_df, relations_df = runner_output
+                logger.info(
+                    "L5 refresh produced BioRED tables: papers=%d entities=%d relations=%d",
+                    len(papers_df),
+                    len(entities_df),
+                    len(relations_df),
+                )
                 refresh_summary = write_pipeline_outputs_with_relations_to_sqlite(
                     papers_df,
                     entities_df,
@@ -209,6 +232,7 @@ def run_agent_controller(
                     "evidence_sentences_added": added_sentences,
                 }
         except Exception as exc:
+            logger.exception("L5 refresh failed: task=%s retrieval_mode=%s", resolved_task, resolved_mode)
             return {
                 "status": "refresh_failed",
                 "task": resolved_task,
@@ -246,6 +270,14 @@ def run_agent_controller(
         status = "refreshed_and_found" if retrieval["count"] else "refreshed_no_evidence"
     else:
         status = "evidence_found" if retrieval["count"] else "insufficient_evidence"
+    logger.info(
+        "L5 retrieval complete: task=%s retrieval_mode=%s status=%s count=%d refreshed=%s",
+        resolved_task,
+        retrieval["mode"],
+        status,
+        retrieval["count"],
+        allow_refresh,
+    )
 
     return {
         "status": status,

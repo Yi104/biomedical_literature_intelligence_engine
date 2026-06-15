@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 from src.extraction.biored_pipeline import run_biored_pipeline
 
@@ -30,7 +31,12 @@ def main() -> None:
     parser.add_argument("--relation_mode", choices=["gold", "model"], default="gold")
     parser.add_argument("--relation_model_path", type=str, default=None)
     parser.add_argument("--confidence_threshold", type=float, default=0.5)
+    parser.add_argument("--log_level", type=str, default="INFO")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
     papers_df, entities_df, relations_df = run_biored_pipeline(
         query=args.query,

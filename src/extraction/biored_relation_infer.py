@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Callable, Iterable
 
 import pandas as pd
@@ -8,6 +9,8 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from src.extraction.biored_loader import _select_evidence_sentence
 from src.extraction.model_registry import resolve_model_for_eval
+
+logger = logging.getLogger(__name__)
 
 GENE_TYPES = {"GeneOrGeneProduct", "Gene"}
 DISEASE_TYPES = {"DiseaseOrPhenotypicFeature", "Disease"}
@@ -91,7 +94,14 @@ def build_biored_relation_candidates(
                         "tail_id": disease["normalized_id"],
                     }
                 )
-    return pd.DataFrame(rows)
+    candidates_df = pd.DataFrame(rows)
+    logger.info(
+        "BioRED 4A built relation candidates: papers=%d entities=%d candidates=%d",
+        len(papers_df),
+        len(entities_df),
+        len(candidates_df),
+    )
+    return candidates_df
 
 
 def relation_predictions_to_dataframe(
@@ -101,10 +111,16 @@ def relation_predictions_to_dataframe(
     confidence_threshold: float = 0.5,
 ) -> pd.DataFrame:
     rows: list[dict] = []
+    skipped_no_relation = 0
+    skipped_low_confidence = 0
     for (_, candidate), (label, confidence) in zip(candidates_df.iterrows(), predictions):
         label = str(label)
         confidence = float(confidence)
-        if label == "No_Relation" or confidence < confidence_threshold:
+        if label == "No_Relation":
+            skipped_no_relation += 1
+            continue
+        if confidence < confidence_threshold:
+            skipped_low_confidence += 1
             continue
         rows.append(
             {
@@ -122,6 +138,14 @@ def relation_predictions_to_dataframe(
                 "confidence": confidence,
             }
         )
+    logger.info(
+        "BioRED 4A filtered relation predictions: candidates=%d kept=%d no_relation=%d low_confidence=%d threshold=%.3f",
+        len(candidates_df),
+        len(rows),
+        skipped_no_relation,
+        skipped_low_confidence,
+        confidence_threshold,
+    )
     if not rows:
         return _empty_relations_df()
     return pd.DataFrame(rows, columns=RELATION_COLUMNS)
@@ -139,11 +163,18 @@ def predict_biored_relations(
 ) -> pd.DataFrame:
     candidates_df = build_biored_relation_candidates(papers_df, entities_df)
     if candidates_df.empty:
+        logger.info("BioRED 4A found no gene-disease candidates to score")
         return _empty_relations_df()
 
     if prediction_fn is None:
         resolved_model_path = model_path or resolve_model_for_eval(
             DEFAULT_RELATION_MODEL_ROOT
+        )
+        logger.info(
+            "BioRED 4A scoring candidates with model=%s batch_size=%d max_length=%d",
+            resolved_model_path,
+            batch_size,
+            max_length,
         )
         predictions = _predict_with_transformer(
             candidates_df,
@@ -152,6 +183,7 @@ def predict_biored_relations(
             batch_size=batch_size,
         )
     else:
+        logger.info("BioRED 4A using injected prediction function for %d candidates", len(candidates_df))
         predictions = list(prediction_fn(candidates_df))
 
     return relation_predictions_to_dataframe(
@@ -173,6 +205,11 @@ def _predict_with_transformer(
     model = AutoModelForSequenceClassification.from_pretrained(model_path)
     model.eval()
     id2label = {int(k): v for k, v in dict(model.config.id2label).items()}
+    logger.info(
+        "BioRED 4A loaded relation model labels: model=%s labels=%s",
+        model_path,
+        sorted(id2label.values()),
+    )
 
     predictions: list[tuple[str, float]] = []
     for start in range(0, len(candidates_df), batch_size):

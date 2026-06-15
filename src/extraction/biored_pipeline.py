@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Tuple
 
 import pandas as pd
@@ -7,6 +8,8 @@ import pandas as pd
 from src.extraction.biored_loader import load_biored_pubtator_as_dataframes
 from src.extraction.biored_relation_infer import predict_biored_relations
 from src.normalization.rule_based import normalize_entities_df
+
+logger = logging.getLogger(__name__)
 
 # Primary target task: BioRED supports gene/protein and disease entities plus
 # document-level disease-gene relations. Live mode reads local BioRED PubTator
@@ -32,6 +35,13 @@ def run_biored_pipeline(
     """
     if max_docs is None:
         max_docs = retmax
+    logger.info(
+        "BioRED pipeline start: smoke=%s relation_mode=%s data_path=%s max_docs=%s",
+        smoke,
+        relation_mode,
+        data_path,
+        max_docs,
+    )
     if not smoke:
         if not data_path:
             raise FileNotFoundError(
@@ -42,19 +52,31 @@ def run_biored_pipeline(
             pubtator_path=data_path,
             max_docs=max_docs,
         )
+        logger.info(
+            "BioRED pipeline loaded PubTator tables: papers=%d entities=%d relations=%d",
+            len(papers_df),
+            len(entities_df),
+            len(relations_df),
+        )
         if relation_mode == "gold":
+            logger.info("BioRED pipeline returning gold relations")
             return papers_df, entities_df, relations_df
         if relation_mode == "model":
+            predicted_relations_df = predict_biored_relations(
+                papers_df=papers_df,
+                entities_df=entities_df,
+                model_path=relation_model_path,
+                max_length=max_length,
+                confidence_threshold=confidence_threshold,
+            )
+            logger.info(
+                "BioRED pipeline returning model relations: predicted_relations=%d",
+                len(predicted_relations_df),
+            )
             return (
                 papers_df,
                 entities_df,
-                predict_biored_relations(
-                    papers_df=papers_df,
-                    entities_df=entities_df,
-                    model_path=relation_model_path,
-                    max_length=max_length,
-                    confidence_threshold=confidence_threshold,
-                ),
+                predicted_relations_df,
             )
         raise ValueError("relation_mode must be one of: gold, model")
 
@@ -108,5 +130,11 @@ def run_biored_pipeline(
                 "confidence": 1.0,
             }
         ]
+    )
+    logger.info(
+        "BioRED pipeline returning smoke fixture: papers=%d entities=%d relations=%d",
+        len(papers_df),
+        len(entities_df),
+        len(relations_df),
     )
     return papers_df, entities_df, relations_df

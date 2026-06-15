@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 
 from src.agent.controller import run_agent_controller
 from src.kb.schema import DEFAULT_DB_PATH
@@ -48,7 +49,12 @@ def main() -> None:
     parser.add_argument("--base_url", type=str, default=None)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max_tokens", type=int, default=512)
+    parser.add_argument("--log_level", type=str, default="INFO")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
     agent_result = run_agent_controller(
         task=args.task,

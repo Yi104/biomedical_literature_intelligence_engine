@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 
 from src.extraction.biored_pipeline import run_biored_pipeline
 from src.extraction.bc5cdr_pipeline import run_bc5cdr_pipeline
@@ -25,7 +26,12 @@ def main():
     parser.add_argument("--confidence_threshold", type=float, default=0.5)
     parser.add_argument("--db_path", type=str, default=DEFAULT_DB_PATH)
     parser.add_argument("--smoke", action="store_true")
+    parser.add_argument("--log_level", type=str, default="INFO")
     args = parser.parse_args()
+    logging.basicConfig(
+        level=getattr(logging, args.log_level.upper(), logging.INFO),
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
     init_sqlite_schema(args.db_path)
 

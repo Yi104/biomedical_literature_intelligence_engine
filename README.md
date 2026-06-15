@@ -131,6 +131,18 @@ Open:
 - `doc/end_to_end_data_flow.md`: Mermaid diagrams and tables tracing data from mappings through the L5 evidence bundle
 - `doc/sentence_level_evidence_upgrade.md`: L3-L5 v1.1 upgrade record for citation-ready source sentences
 - `doc/biored_primary_task_transition.md`: primary task migration and BioRED relation contract
+- `doc/change_log.md`: behavior-level change record for baselines, inference modes, and traceability updates
+
+## Change Recording Rule
+
+Major changes must update `doc/change_log.md`.
+
+This includes changes that:
+- modify task behavior across layers
+- change default model selection or default config
+- change task contracts, schemas, or CLI parameters
+- change evaluation interpretation or baseline metrics
+- add or remove operational traceability such as logs or manifests
 
 ## Troubleshooting
 
