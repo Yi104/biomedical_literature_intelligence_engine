@@ -60,6 +60,8 @@ def test_read_only_request_returns_existing_evidence_without_refresh(tmp_path):
     assert result["refreshed"] is False
     assert result["count"] == 1
     assert result["evidence"] == [{"pmid": "P100"}]
+    assert result["schema_version"] == "evidence-v1"
+    assert result["bundle"]["schema_version"] == "evidence-v1"
     assert result["refresh"] is None
 
 
@@ -75,6 +77,7 @@ def test_read_only_request_reports_insufficient_evidence(tmp_path):
     assert result["status"] == "insufficient_evidence"
     assert result["count"] == 0
     assert result["evidence"] == []
+    assert result["bundle"]["insufficient_evidence"] is True
 
 
 def test_explicit_refresh_writes_outputs_and_returns_follow_up_evidence(tmp_path):
@@ -100,6 +103,7 @@ def test_explicit_refresh_writes_outputs_and_returns_follow_up_evidence(tmp_path
     assert result["refreshed"] is True
     assert result["count"] == 1
     assert result["evidence"][0]["normalized_id"] == "CHEBI:27899"
+    assert result["entities"][0]["normalized"]["id"] == "CHEBI:27899"
     assert result["refresh"] == {
         "search_query": "cisplatin kidney diseases",
         "papers_added": 1,
@@ -128,6 +132,8 @@ def test_refresh_failure_returns_no_fabricated_evidence(tmp_path):
     assert result["count"] == 0
     assert result["evidence"] == []
     assert result["message"] == "pipeline failed"
+    assert result["schema_version"] == "evidence-v1"
+    assert result["bundle"]["status"] == "refresh_failed"
 
 
 def test_bc5cdr_smoke_refresh_runs_through_l5_controller(tmp_path):
@@ -144,6 +150,9 @@ def test_bc5cdr_smoke_refresh_runs_through_l5_controller(tmp_path):
     assert result["status"] == "refreshed_and_found"
     assert result["count"] == 1
     assert result["evidence"][0]["sentence_text"] == (
+        "Cisplatin is associated with kidney diseases."
+    )
+    assert result["evidence_records"][0]["text"] == (
         "Cisplatin is associated with kidney diseases."
     )
     assert {item["entity_type"] for item in result["evidence"][0]["entities"]} == {
@@ -224,6 +233,8 @@ def test_biored_relation_read_only_mode(tmp_path):
     assert result["status"] == "evidence_found"
     assert result["count"] == 1
     assert result["evidence"][0]["relation_type"] == "Association"
+    assert result["relations"][0]["type"] == "Association"
+    assert result["evidence_records"][0]["supports"]["relation_id"] == result["relations"][0]["relation_id"]
 
 
 def test_biored_refresh_writes_relation_outputs(tmp_path):
@@ -299,3 +310,4 @@ def test_biored_refresh_writes_relation_outputs(tmp_path):
     assert result["status"] == "refreshed_and_found"
     assert result["count"] == 1
     assert result["refresh"]["relations_added"] == 1
+    assert result["relations"][0]["subject"]["normalized_id"] == "672"

@@ -5,6 +5,9 @@ from typing import Any, Callable, Dict, Tuple
 
 import pandas as pd
 
+from src.contracts.evidence_adapters import (
+    build_unified_evidence_bundle_from_agent_result,
+)
 from src.kb.schema import DEFAULT_DB_PATH
 from src.kb.writer import (
     write_pipeline_outputs_to_sqlite,
@@ -138,6 +141,35 @@ def _default_refresh_runner(
     return run_task(task, **pipeline_args)
 
 
+def _empty_unified_payload(
+    *,
+    task: str,
+    retrieval_mode: str,
+    filters: Dict[str, str],
+    status: str,
+) -> Dict[str, Any]:
+    bundle = build_unified_evidence_bundle_from_agent_result(
+        "",
+        {
+            "status": status,
+            "task": task,
+            "retrieval_mode": retrieval_mode,
+            "filters": filters,
+            "count": 0,
+            "evidence": [],
+        },
+    )
+    return {
+        "schema_version": bundle["schema_version"],
+        "documents": bundle["documents"],
+        "entities": bundle["entities"],
+        "relations": bundle["relations"],
+        "evidence_records": bundle["evidence"],
+        "provenance": bundle["provenance"],
+        "bundle": bundle,
+    }
+
+
 def run_agent_controller(
     *,
     task: str,
@@ -233,19 +265,26 @@ def run_agent_controller(
                 }
         except Exception as exc:
             logger.exception("L5 refresh failed: task=%s retrieval_mode=%s", resolved_task, resolved_mode)
+            filters = _filters_for_request(
+                resolved_mode,
+                pmid=pmid,
+                normalized_id=normalized_id,
+                entity_type=entity_type,
+                keyword=keyword,
+                entity1_normalized_id=entity1_normalized_id,
+                entity2_normalized_id=entity2_normalized_id,
+            )
             return {
+                **_empty_unified_payload(
+                    task=resolved_task,
+                    retrieval_mode=resolved_mode,
+                    filters=filters,
+                    status="refresh_failed",
+                ),
                 "status": "refresh_failed",
                 "task": resolved_task,
                 "retrieval_mode": resolved_mode,
-                "filters": _filters_for_request(
-                    resolved_mode,
-                    pmid=pmid,
-                    normalized_id=normalized_id,
-                    entity_type=entity_type,
-                    keyword=keyword,
-                    entity1_normalized_id=entity1_normalized_id,
-                    entity2_normalized_id=entity2_normalized_id,
-                ),
+                "filters": filters,
                 "refreshed": False,
                 "count": 0,
                 "evidence": [],
@@ -278,8 +317,20 @@ def run_agent_controller(
         retrieval["count"],
         allow_refresh,
     )
+    bundle = build_unified_evidence_bundle_from_agent_result(
+        "",
+        {
+            "status": status,
+            "task": resolved_task,
+            "retrieval_mode": retrieval["mode"],
+            "filters": retrieval["filters"],
+            "count": retrieval["count"],
+            "evidence": retrieval["results"],
+        },
+    )
 
     return {
+        "schema_version": bundle["schema_version"],
         "status": status,
         "task": resolved_task,
         "retrieval_mode": retrieval["mode"],
@@ -287,6 +338,12 @@ def run_agent_controller(
         "refreshed": allow_refresh,
         "count": retrieval["count"],
         "evidence": retrieval["results"],
+        "documents": bundle["documents"],
+        "entities": bundle["entities"],
+        "relations": bundle["relations"],
+        "evidence_records": bundle["evidence"],
+        "provenance": bundle["provenance"],
+        "bundle": bundle,
         "refresh": refresh_summary,
         "message": None,
     }

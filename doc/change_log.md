@@ -83,7 +83,7 @@ Validation:
 - Added unit tests for pointer resolution and tie-breaking.
 - Full test suite passed after the change.
 
-## 2026-06-16
+## 2026-06-15
 
 ### Unified evidence-layer contract and refactor plan
 
@@ -114,35 +114,6 @@ Behavioral effect:
 Operational effect:
 - Future code changes can now be evaluated against a written schema target
   instead of ad hoc bundle shapes.
-
-### Unified evidence contract code scaffolding
-
-What changed:
-- Added `src/contracts/unified_evidence_schema.py`.
-- Added `src/contracts/evidence_adapters.py`.
-- Added `src/contracts/__init__.py`.
-- Updated `src/llm/evidence_bundle.py` to build L6 bundles through the unified
-  adapter layer instead of direct ad hoc row flattening.
-- Added focused tests for schema versioning and adapter behavior.
-
-Why:
-- The repository needed the evidence-layer contract to exist in code, not only
-  in documentation.
-- The adapter layer is the lowest-risk bridge between current retrieval output
-  and the future reusable evidence bundle consumed by L6/L7 and downstream
-  systems.
-
-Behavioral effect:
-- L6 evidence bundle construction now flows through a unified schema-oriented
-  adapter path while preserving the current `records` field shape for backward
-  compatibility.
-
-Validation:
-- New modules compiled successfully with `python -m py_compile`.
-- Direct adapter smoke validation passed through a Python import/assert script.
-- Full `pytest` execution could not be completed in the current environment due
-  to an external Python 3.13 `pytest` segmentation fault during debugger/plugin
-  import.
 
 ### 4A runtime logging
 
@@ -215,6 +186,70 @@ Why:
 Validation:
 - Added unit tests for logging helper setup and manifest finalization.
 - Verified a real CLI run creates persistent artifacts.
+
+
+## 2026-06-16
+### Unified evidence contract code scaffolding
+
+What changed:
+- Added `src/contracts/unified_evidence_schema.py`.
+- Added `src/contracts/evidence_adapters.py`.
+- Added `src/contracts/__init__.py`.
+- Updated `src/llm/evidence_bundle.py` to build L6 bundles through the unified
+  adapter layer instead of direct ad hoc row flattening.
+- Added focused tests for schema versioning and adapter behavior.
+
+Why:
+- The repository needed the evidence-layer contract to exist in code, not only
+  in documentation.
+- The adapter layer is the lowest-risk bridge between current retrieval output
+  and the future reusable evidence bundle consumed by L6/L7 and downstream
+  systems.
+
+Behavioral effect:
+- L6 evidence bundle construction now flows through a unified schema-oriented
+  adapter path while preserving the current `records` field shape for backward
+  compatibility.
+
+Validation:
+- New modules compiled successfully with `python -m py_compile`.
+- Direct adapter smoke validation passed through a Python import/assert script.
+- Full `pytest` execution could not be completed in the current environment due
+  to an external Python 3.13 `pytest` segmentation fault during debugger/plugin
+  import.
+
+### Retrieval and agent unified bundle integration
+
+What changed:
+- Updated `src/retrieval/sqlite_service.py` to attach unified evidence-layer
+  payload sections alongside the existing `results` contract.
+- Updated `src/agent/controller.py` to return:
+  - `schema_version`
+  - `documents`
+  - `entities`
+  - `relations`
+  - `evidence_records`
+  - `provenance`
+  - `bundle`
+- Extended retrieval and agent unit tests to assert the new integration fields
+  while preserving legacy fields.
+
+Why:
+- The unified contract needed to move downward from L6-only wrapping into the
+  L4/L5 integration boundary where downstream systems will actually consume it.
+- This keeps existing callers working while making retrieval and agent outputs
+  directly usable by `bioAI-target` and other KB consumers.
+
+Behavioral effect:
+- Retrieval and agent responses now expose both:
+  - legacy mode-specific rows
+  - unified evidence-layer object sections
+
+Validation:
+- Updated files compiled successfully with `python -m py_compile`.
+- Environment-level runtime verification remains limited by the same external
+  Python instability observed during `pytest` execution in this session.
+
 
 ## Recording rule
 

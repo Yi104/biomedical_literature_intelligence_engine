@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from src.contracts.evidence_adapters import (
+    build_unified_evidence_bundle_from_agent_result,
+)
 from src.kb.query import (
     find_mentions_by_type_and_keyword,
     get_evidence_sentences_by_normalized_id,
@@ -106,6 +109,17 @@ def query_kb(
         )
 
     return {
+        **build_unified_evidence_bundle_from_agent_result(
+            "",
+            {
+                "status": "",
+                "task": str(task or ""),
+                "retrieval_mode": mode,
+                "filters": filters,
+                "count": len(results),
+                "evidence": results,
+            },
+        ),
         "mode": mode,
         "filters": filters,
         "count": len(results),

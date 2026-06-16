@@ -49,12 +49,15 @@ def test_query_kb_contract_for_three_modes(tmp_path):
     assert by_pmid["filters"] == {"pmid": "P100"}
     assert by_pmid["count"] == 1
     assert by_pmid["results"][0]["normalized_id"] == "CHEBI:27899"
+    assert by_pmid["schema_version"] == "evidence-v1"
+    assert by_pmid["entities"][0]["normalized"]["id"] == "CHEBI:27899"
 
     by_norm = query_kb(mode="normalized_id", normalized_id="CHEBI:27899", db_path=db_path)
     assert by_norm["mode"] == "normalized_id"
     assert by_norm["filters"] == {"normalized_id": "CHEBI:27899"}
     assert by_norm["count"] == 1
     assert by_norm["results"] == [{"pmid": "P100"}]
+    assert by_norm["documents"] == []
 
     by_type_kw = query_kb(
         mode="type_keyword",
@@ -73,6 +76,7 @@ def test_query_kb_contract_for_three_modes(tmp_path):
     assert by_evidence_pmid["filters"] == {"pmid": "P100", "task": "bc5cdr"}
     assert by_evidence_pmid["count"] == 1
     assert by_evidence_pmid["results"][0]["sentence_text"] == "Cisplatin in kidney diseases"
+    assert by_evidence_pmid["evidence"][0]["text"] == "Cisplatin in kidney diseases"
 
     by_evidence_norm = query_kb(
         mode="evidence_normalized_id",
@@ -153,6 +157,8 @@ def test_query_kb_relation_modes(tmp_path):
     by_pmid = query_kb(mode="relation_pmid", pmid="P300", task="biored", db_path=db_path)
     assert by_pmid["count"] == 1
     assert by_pmid["results"][0]["relation_type"] == "Association"
+    assert by_pmid["relations"][0]["type"] == "Association"
+    assert by_pmid["provenance"][0]["novelty"] == "Novel"
 
     by_pair = query_kb(
         mode="relation_entity_pair",
@@ -163,3 +169,4 @@ def test_query_kb_relation_modes(tmp_path):
     )
     assert by_pair["count"] == 1
     assert by_pair["results"][0]["provenance"][0]["novelty"] == "Novel"
+    assert by_pair["evidence"][0]["supports"]["relation_id"] == by_pair["relations"][0]["relation_id"]
