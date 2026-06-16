@@ -132,6 +132,7 @@ Open:
 - `doc/sentence_level_evidence_upgrade.md`: L3-L5 v1.1 upgrade record for citation-ready source sentences
 - `doc/biored_primary_task_transition.md`: primary task migration and BioRED relation contract
 - `doc/change_log.md`: behavior-level change record for baselines, inference modes, and traceability updates
+- `doc/4b_tracking.md`: roadmap and audit tracker for live PubMed extraction accuracy
 
 ## Change Recording Rule
 

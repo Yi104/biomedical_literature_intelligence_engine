@@ -15,8 +15,11 @@ Quick visual map:
 
 - [System Architecture Diagram](system_architecture_diagram.md)
 - [End-to-End Data Flow](end_to_end_data_flow.md): implemented mapping, ingestion, SQLite, and L5 evidence paths
+- [Data Flow Architecture](data_flow_architecture.md): layer-by-layer object flow and contract boundaries
 - [Sentence-Level Evidence Upgrade](sentence_level_evidence_upgrade.md): L3-L5 v1.1 source-sentence persistence and retrieval
 - [BioRED Primary Task Transition](biored_primary_task_transition.md): why gene-disease work moves to BioRED
+- [Unified Evidence Schema](unified_evidence_schema.md): target reusable evidence-layer contract
+- [Evidence Schema Refactor Plan](evidence_schema_refactor_plan.md): file-level migration plan from current contracts to the unified layer
 
 Core constraints:
 

@@ -85,6 +85,65 @@ Validation:
 
 ## 2026-06-16
 
+### Unified evidence-layer contract and refactor plan
+
+What changed:
+- Added `doc/unified_evidence_schema.md`.
+- Added `doc/evidence_schema_refactor_plan.md`.
+- Added `doc/data_flow_architecture.md`.
+- Linked the new architecture and schema documents from `doc/system_design_v2.md`.
+
+Why:
+- The repository had extraction contracts, SQLite tables, and L6/L7 wrappers,
+  but did not yet define one stable platform-level evidence contract.
+- The repository also lacked one document that explicitly shows where
+  extraction, storage, retrieval, agent, and evidence contracts change across
+  the pipeline.
+- The new documents make the project boundary explicit:
+  - current state: extraction + normalization + SQLite + partial provenance
+  - target state: reusable `Document / Entity / Relation / Evidence / Provenance`
+    contract for `bioAI-target` and other downstream KB integrations
+
+Behavioral effect:
+- No runtime behavior changed.
+- Project documentation now distinguishes:
+  - extraction-layer outputs
+  - evidence-layer objects
+  - the migration path between them
+
+Operational effect:
+- Future code changes can now be evaluated against a written schema target
+  instead of ad hoc bundle shapes.
+
+### Unified evidence contract code scaffolding
+
+What changed:
+- Added `src/contracts/unified_evidence_schema.py`.
+- Added `src/contracts/evidence_adapters.py`.
+- Added `src/contracts/__init__.py`.
+- Updated `src/llm/evidence_bundle.py` to build L6 bundles through the unified
+  adapter layer instead of direct ad hoc row flattening.
+- Added focused tests for schema versioning and adapter behavior.
+
+Why:
+- The repository needed the evidence-layer contract to exist in code, not only
+  in documentation.
+- The adapter layer is the lowest-risk bridge between current retrieval output
+  and the future reusable evidence bundle consumed by L6/L7 and downstream
+  systems.
+
+Behavioral effect:
+- L6 evidence bundle construction now flows through a unified schema-oriented
+  adapter path while preserving the current `records` field shape for backward
+  compatibility.
+
+Validation:
+- New modules compiled successfully with `python -m py_compile`.
+- Direct adapter smoke validation passed through a Python import/assert script.
+- Full `pytest` execution could not be completed in the current environment due
+  to an external Python 3.13 `pytest` segmentation fault during debugger/plugin
+  import.
+
 ### 4A runtime logging
 
 What changed:
