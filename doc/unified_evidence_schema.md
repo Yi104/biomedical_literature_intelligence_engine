@@ -39,6 +39,8 @@ Out of scope for this schema:
 4. Preserve current repository capabilities while leaving room for stronger
    offsets, ranking, and multi-evidence aggregation.
 5. Make the contract portable to other knowledge base systems.
+6. Keep relation arguments generic enough to support more than one biomedical
+   subdomain.
 
 ## Core Objects
 
@@ -124,6 +126,14 @@ Notes:
 - `char_start` and `char_end` should be nullable in V1 because the current
   extraction path does not guarantee source-text character offsets.
 - `entity_id` can be deterministic and derived from PMID, type, span, and text.
+- `type` should stay open-ended. Current or expected examples include:
+  - `GeneOrGeneProduct`
+  - `DiseaseOrPhenotypicFeature`
+  - `Chemical`
+  - `Variant`
+  - `Biomarker`
+  - `Assay`
+  - `Outcome`
 
 Current repository mapping:
 
@@ -136,6 +146,9 @@ Current repository mapping:
 
 Represents a structured statement between two normalized entities. It is not
 the same thing as evidence.
+
+Important: `subject` and `object` are generic relation arguments. They are not
+special gene-only or disease-only fields.
 
 ```json
 {
@@ -163,6 +176,40 @@ the same thing as evidence.
 }
 ```
 
+The same structure should also work in other domains, for example:
+
+```json
+{
+  "type": "Treats",
+  "subject": {
+    "text": "cisplatin",
+    "type": "Chemical",
+    "normalized_id": "CHEBI:27899"
+  },
+  "object": {
+    "text": "kidney diseases",
+    "type": "Disease",
+    "normalized_id": "MESH:D007674"
+  }
+}
+```
+
+```json
+{
+  "type": "BiomarkerFor",
+  "subject": {
+    "text": "EGFR mutation",
+    "type": "Variant",
+    "normalized_id": "HGVS:..."
+  },
+  "object": {
+    "text": "lung cancer",
+    "type": "Disease",
+    "normalized_id": "MESH:D008175"
+  }
+}
+```
+
 Required fields:
 
 - `relation_id`
@@ -181,6 +228,9 @@ Notes:
 
 - Future versions may add directionality roles explicitly beyond
   subject/object naming.
+- `subject.type` and `object.type` are intentionally unconstrained by the
+  schema. They may be gene, disease, chemical, variant, biomarker, assay,
+  outcome, or another supported biomedical entity class.
 - A relation should be queryable independently of which evidence sentence was
   selected first.
 

@@ -50,6 +50,12 @@ source literature
 
 The important point is that these are not all the same kind of data.
 
+The other important point is portability: the unified evidence contract should
+remain generic across biomedical relation domains. The platform may start with
+gene-disease, but the target object model should also support drug-disease,
+drug-target, variant-disease, biomarker-outcome, and related tasks without
+changing the top-level bundle shape.
+
 ## 3. Flow by Layer
 
 ### L0. Source and Ingestion
@@ -441,6 +447,10 @@ The key point is:
 - persistence output is for storage
 - retrieval output is for queries
 - unified evidence output is for platform interoperability
+
+In particular, the unified relation object should not hardcode fields such as
+`gene_id` or `disease_id`. It should continue to use generic endpoints such as
+`subject` and `object`, with type labels carried inside those endpoint objects.
 
 ## 8. Current Gaps in the Flow
 

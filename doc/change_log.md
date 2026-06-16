@@ -115,6 +115,25 @@ Operational effect:
 - Future code changes can now be evaluated against a written schema target
   instead of ad hoc bundle shapes.
 
+### Domain-agnostic evidence schema clarification
+
+What changed:
+- Updated `src/contracts/unified_evidence_schema.py` comments to make entity
+  types and relation endpoints explicitly open-ended.
+- Updated `doc/unified_evidence_schema.md` with subject/object examples beyond
+  gene-disease, including drug-disease and variant-disease style relations.
+- Updated `doc/data_flow_architecture.md` to state that the unified bundle
+  should remain reusable across multiple biomedical relation domains.
+
+Why:
+- The schema should not read as BioRED-only or gene-disease-only if it is
+  intended to support future integration into other knowledge base settings.
+
+Behavioral effect:
+- No runtime behavior changed.
+- The contract definition is now clearer about how `subject` and `object`
+  should be interpreted in non-BioRED domains.
+
 ### 4A runtime logging
 
 What changed:

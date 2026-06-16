@@ -35,12 +35,18 @@ class EntityRecord(TypedDict):
     pmid: str
     document_id: str
     text: str
+    # Entity type is intentionally open-ended. Current and future examples may
+    # include GeneOrGeneProduct, DiseaseOrPhenotypicFeature, Chemical, Variant,
+    # Biomarker, Assay, Outcome, CellLine, or Species.
     type: str
     mention_span: MentionSpanRecord
     normalized: NotRequired[NormalizedEntityRecord]
 
 
 class RelationEndpointRecord(TypedDict):
+    # subject/object are generic relation endpoints, not hardcoded gene/disease
+    # slots. They should remain reusable for gene-disease, drug-disease,
+    # drug-target, variant-disease, biomarker-outcome, and related tasks.
     entity_id: str
     text: str
     type: str
@@ -57,6 +63,9 @@ class RelationRecord(TypedDict):
     relation_id: str
     pmid: str
     document_id: str
+    # Relation type is also open-ended. Example values may include
+    # Association, Treats, Causes, Inhibits, BiomarkerFor, AdverseEvent,
+    # DiagnosticOf, or PrognosticFor.
     type: str
     subject: RelationEndpointRecord
     object: RelationEndpointRecord
