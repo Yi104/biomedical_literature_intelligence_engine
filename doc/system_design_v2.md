@@ -1,5 +1,7 @@
 # Biomedical Literature Intelligence System Design (V2)
 
+Last updated on: 2026-06-16 (America/Los_Angeles)
+
 ## 1. Objective
 
 Build a production-style biomedical literature intelligence platform with one
@@ -13,13 +15,13 @@ The platform converts unstructured PubMed abstracts into structured, queryable e
 
 Quick visual map:
 
-- [System Architecture Diagram](system_architecture_diagram.md)
-- [End-to-End Data Flow](end_to_end_data_flow.md): implemented mapping, ingestion, SQLite, and L5 evidence paths
-- [Data Flow Architecture](data_flow_architecture.md): layer-by-layer object flow and contract boundaries
-- [Sentence-Level Evidence Upgrade](sentence_level_evidence_upgrade.md): L3-L5 v1.1 source-sentence persistence and retrieval
-- [BioRED Primary Task Transition](biored_primary_task_transition.md): why gene-disease work moves to BioRED
-- [Unified Evidence Schema](unified_evidence_schema.md): target reusable evidence-layer contract
-- [Evidence Schema Refactor Plan](evidence_schema_refactor_plan.md): file-level migration plan from current contracts to the unified layer
+- [System Architecture Diagram](system_architecture_diagram.md): current high-level platform map
+- [End-to-End Data Flow](end_to_end_data_flow.md): current implemented mapping, ingestion, SQLite, retrieval, and evidence flow
+- [Data Flow Architecture](data_flow_architecture.md): current layer-by-layer object flow and contract boundaries
+- [Unified Evidence Schema](unified_evidence_schema.md): current reusable evidence-layer contract
+- [Sentence-Level Evidence Upgrade](historical/sentence_level_evidence_upgrade.md): historical upgrade record for L3-L5 sentence evidence persistence
+- [BioRED Primary Task Transition](historical/biored_primary_task_transition.md): historical rationale for moving the primary task to BioRED
+- [Evidence Schema Refactor Plan](evidence_schema_refactor_plan.md): partially historical migration plan; several early integration steps are now implemented
 
 Core constraints:
 
@@ -191,6 +193,18 @@ Task outputs:
 - Baseline evidence mode: structured chemical-disease evidence packets from BC5CDR
 - Discovery mode: broader entity mention summaries and export tables
 
+Current integration status:
+
+- L4 now exposes unified evidence-layer payload sections in addition to legacy
+  mode-specific row outputs.
+- The unified payload currently includes:
+  - `schema_version`
+  - `documents`
+  - `entities`
+  - `relations`
+  - `evidence`
+  - `provenance`
+
 ### L5. Agent Layer (Tool-Calling Orchestration)
 
 Responsibilities:
@@ -202,6 +216,14 @@ Responsibilities:
 Output:
 
 - Evidence bundle for LLM summarization
+
+Current integration status:
+
+- L5 now returns both:
+  - existing task/mode-specific response fields
+  - unified evidence-layer payload sections and `bundle`
+- This is sufficient for downstream systems such as `bioAI-target` to consume
+  evidence objects without requiring L6 summarization.
 
 ### L6. LLM Layer (Constrained Summarization)
 
@@ -226,6 +248,12 @@ Integration contract:
 - Input: `question` + evidence bundle from L4/L5
 - Output: `{provider, model(optional), summary, citations/evidence}`
 - Fallback: if provider unavailable, return evidence-only mode
+
+Current status note:
+
+- L6 bundle construction already flows through the unified adapter path.
+- The remaining cleanup item is to keep L6/L7 purely consumer-oriented over the
+  unified bundle and avoid future dependence on ad hoc retrieval row shapes.
 
 Implemented L6 bundle contract (v1):
 
@@ -305,7 +333,65 @@ Task-specific outputs:
 - `BC5CDR`: chemical, disease, PMID, evidence sentence, evidence type
 - `JNLPBA`: entity type, mention text, PMID, sentence, optional canonical ID
 
-## 3. Database Schema
+## 2A. Current Priorities and TODO
+
+Integration baseline status:
+
+- Unified evidence contract documentation: complete
+- Unified evidence contract code scaffolding: complete
+- L4 retrieval integration: complete for v1
+- L5 agent integration: complete for v1
+- Provenance v1 field plumbing:
+  - `evidence_id`
+  - `sentence_index`
+  - `link_method`
+  - nullable `char_start` / `char_end`
+  complete for v1
+
+Remaining integration cleanup:
+
+1. Keep L6/L7 consumer-only over the unified bundle contract.
+2. Expand regression coverage once the local `pytest` environment is stable.
+3. Add explicit schema migration/version tracking for SQLite changes.
+
+Next priority after integration baseline:
+
+1. Improve normalization quality and ambiguity handling.
+2. Improve relation extraction quality beyond the current BioRED baseline.
+3. Add evidence ranking/scoring for better downstream retrieval usefulness.
+
+## 3. Historical / Archived Design Notes
+
+The sections below are retained as historical design context from an earlier
+planning phase. They are **not** the current source of truth for the live
+repository structure.
+
+Use these documents instead for the current architecture and contracts:
+
+- [Data Flow Architecture](data_flow_architecture.md)
+- [Unified Evidence Schema](unified_evidence_schema.md)
+- [End-to-End Data Flow](end_to_end_data_flow.md)
+- [Evidence Schema Refactor Plan](evidence_schema_refactor_plan.md)
+
+Current implementation source of truth in code:
+
+- SQLite schema and writer:
+  - `src/kb/schema.py`
+  - `src/kb/writer.py`
+- Retrieval and agent integration:
+  - `src/retrieval/sqlite_service.py`
+  - `src/agent/controller.py`
+- Unified evidence contract:
+  - `src/contracts/unified_evidence_schema.py`
+  - `src/contracts/evidence_adapters.py`
+
+Historical scope retained below:
+
+- earlier relational schema proposals
+- earlier agent/tool abstractions
+- earlier API sketches
+
+### Archived Database Schema Proposal
 
 SQLite schema designed for sentence-level provenance.
 
@@ -417,7 +503,7 @@ Purpose: task B output table for broader entity discovery.
 - `confidence REAL`
 - `model_version TEXT`
 
-## 4. Tool Abstraction (Agent-Ready API)
+### Archived Tool Abstraction (Agent-Ready API)
 
 Define small deterministic tools with typed returns.
 
@@ -459,7 +545,7 @@ For the BioRED primary path, this API must be extended to accept
 
 Returns ranked sentence evidence for summarization and display.
 
-## 5. Agent Design
+### Archived Agent Design
 
 Lightweight deterministic controller (no RL).
 
@@ -523,62 +609,70 @@ Return explicit null-evidence response:
 
 ```text
 repo/
+  pipelines/
+    run_agent_query.py
+    run_eval.py
+    run_extract_bc5cdr.py
+    run_extract_biored.py
+    run_extract_jnlpba.py
+    run_ingest_to_sqlite.py
+    run_l6_summary.py
+    run_l7_answer.py
+    run_query_sqlite.py
+    run_train.py
+    run_train_relations.py
   src/
-    ingestion/
-      pubmed_client.py
-      ingest_pipeline.py
+    agent/
+      controller.py
+      L5_AGENT_LOGIC.md
+    api/
+    contracts/
+      __init__.py
+      evidence_adapters.py
+      registry.py
+      task_output_schemas.py
+      unified_evidence_schema.py
     extraction/
-      ner_infer.py
       biored_pipeline.py
+      biored_loader.py
+      biored_relation_infer.py
       bc5cdr_pipeline.py
       jnlpba_pipeline.py
-      sentence_split.py
-    normalization/
-      entity_normalizer.py
-      ontology_mapper.py
+      model_registry.py
+      ner_infer.py
+      train_ner.py
+      train_relations.py
+    ingestion/
+      pubmed_client.py
     kb/
-      schema.sql
-      repository.py
-      upsert.py
-    retrieval/
-      structured_query.py
-      semantic_index.py
-      task_router.py
+      evidence.py
+      query.py
+      schema.py
+      writer.py
     llm/
-      prompts.py
-      summarizer.py
-    agent/
-      tools.py
-      planner.py
-      controller.py
-    api/
-      service.py
-      dto.py
-  pipelines/
-    run_ingest.py
-    run_extract_biored.py
-    run_extract_bc5cdr.py
-    run_extract_jnlpba.py
-    run_backfill.py
-  db/
-    kb.sqlite
-    migrations/
-  data/
-    raw/
-    processed/
-    snapshots/
-  tests/
-    unit/
-    integration/
-    fixtures/
-  doc/
-    SYSTEM_DESIGN.md
-    system_design_v2.md
-    research_plan.md
-  configs/
-    default.yaml
-    model.yaml
+      evidence_bundle.py
+      router.py
+      L6_SUMMARIZATION_LOGIC.md
+    normalization/
+      rule_based.py
+    output/
+      l7_answer.py
+      L7_OUTPUT_CONTRACT.md
+    retrieval/
+      sqlite_service.py
+      structured_query.py
+      task_router.py
 ```
+
+Current reading order:
+
+1. `doc/system_design_v2.md`
+2. `doc/data_flow_architecture.md`
+3. `doc/unified_evidence_schema.md`
+4. `src/contracts/`
+5. `src/kb/`
+6. `src/retrieval/`
+7. `src/agent/`
 
 ## 8. Task Definitions
 

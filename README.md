@@ -1,5 +1,7 @@
 # PubMed Biomedical Evidence Extraction
 
+Last updated on: 2026-06-16 (America/Los_Angeles)
+
 ## What This App Is For
 
 The project target is gene-disease evidence extraction with `BioRED`.
@@ -117,22 +119,77 @@ Open:
 
 ## Files and Roles
 
+- `src/contracts/`: evidence-layer contracts and adapters
+  - `unified_evidence_schema.py`: reusable `Document / Entity / Relation / Evidence / Provenance` contract
+  - `evidence_adapters.py`: conversion layer from retrieval/task outputs into unified evidence objects
+  - `task_output_schemas.py`: extraction-layer dataframe contracts
 - `demo/app.py`: Streamlit user interface
 - `src/ingestion/pubmed_client.py`: PubMed search + fetch
-- `src/extraction/biored_pipeline.py`: primary gene-disease task contract scaffold
+- `src/extraction/biored_pipeline.py`: primary gene-disease extraction path
 - `src/extraction/bc5cdr_pipeline.py`: retained chemical-disease evidence baseline
 - `src/extraction/jnlpba_pipeline.py`: retained biomedical entity discovery path
-- `src/retrieval/structured_query.py`: shared query-time pipeline (`query -> papers -> ner -> tables`)
 - `src/extraction/ner_infer.py`: model inference and entity aggregation
+- `src/extraction/biored_relation_infer.py`: BioRED relation candidate generation and classifier inference
 - `src/extraction/train_ner.py`: NER training pipeline
+- `src/extraction/train_relations.py`: BioRED relation training pipeline
+- `src/normalization/rule_based.py`: rule-based entity normalization
+- `src/kb/schema.py`: SQLite schema initialization and lightweight migration adds
+- `src/kb/writer.py`: persistence for mentions, evidence sentences, relations, and provenance
+- `src/kb/query.py`: low-level SQLite query functions
+- `src/retrieval/sqlite_service.py`: L4 retrieval contract and unified payload attachment
+- `src/retrieval/task_router.py`: task dispatch
+- `src/agent/controller.py`: L5 deterministic read/refresh controller
+- `src/llm/evidence_bundle.py`: unified L6 evidence bundle construction
+- `src/llm/router.py`: provider routing and evidence-only fallback
+- `src/output/l7_answer.py`: L7 grounded answer wrapper
 - `pipelines/run_train.py`, `pipelines/run_eval.py`: runnable training/evaluation entrypoints
 - `pipelines/run_extract_bc5cdr.py`, `pipelines/run_extract_jnlpba.py`: task-specific entrypoints
+- `pipelines/run_extract_biored.py`: primary BioRED extraction/relation entrypoint
+- `pipelines/run_ingest_to_sqlite.py`: KB ingestion entrypoint
+- `pipelines/run_agent_query.py`: retrieval/agent entrypoint
+- `pipelines/run_l6_summary.py`, `pipelines/run_l7_answer.py`: evidence bundle and answer entrypoints
 - `doc/system_architecture_diagram.md`: quick architecture diagram
 - `doc/end_to_end_data_flow.md`: Mermaid diagrams and tables tracing data from mappings through the L5 evidence bundle
-- `doc/sentence_level_evidence_upgrade.md`: L3-L5 v1.1 upgrade record for citation-ready source sentences
-- `doc/biored_primary_task_transition.md`: primary task migration and BioRED relation contract
+- `doc/data_flow_architecture.md`: contract boundaries and object transitions across layers
+- `doc/unified_evidence_schema.md`: current reusable evidence-layer schema
+- `doc/evidence_schema_refactor_plan.md`: migration plan from extraction/storage outputs to the unified layer
+- `doc/historical/sentence_level_evidence_upgrade.md`: historical L3-L5 upgrade record for citation-ready source sentences
+- `doc/historical/biored_primary_task_transition.md`: historical primary-task migration and BioRED relation contract
 - `doc/change_log.md`: behavior-level change record for baselines, inference modes, and traceability updates
 - `doc/4b_tracking.md`: roadmap and audit tracker for live PubMed extraction accuracy
+
+## Repository Structure
+
+Current top-level structure:
+
+```text
+repo/
+  demo/                  Streamlit demo UI
+  pipelines/             runnable CLI entrypoints
+  src/
+    agent/               L5 deterministic controller
+    api/                 API-facing stubs and service layer
+    contracts/           extraction contracts + unified evidence contract/adapters
+    extraction/          task pipelines, NER, BioRED relation training/inference
+    ingestion/           PubMed retrieval
+    kb/                  SQLite schema, persistence, evidence linking, SQL queries
+    llm/                 L6 evidence bundle and provider routing
+    normalization/       rule-based entity normalization
+    output/              L7 grounded answer wrapper
+    retrieval/           L4 retrieval service and task routing
+  doc/                   current design docs, flow docs, and change log
+  tests/                 unit tests
+  data/                  raw and processed task/normalization data
+  outputs/               trained models, reports, and runtime logs
+```
+
+Repository reading order:
+
+1. `doc/system_design_v2.md`
+2. `doc/data_flow_architecture.md`
+3. `doc/unified_evidence_schema.md`
+4. `src/contracts/`
+5. `src/kb/`, `src/retrieval/`, `src/agent/`
 
 ## Change Recording Rule
 
@@ -392,8 +449,8 @@ Design notes:
 - `src/agent/L5_AGENT_LOGIC.md`
 - `src/llm/L6_SUMMARIZATION_LOGIC.md`
 - `doc/end_to_end_data_flow.md`
-- `doc/sentence_level_evidence_upgrade.md`
-- `doc/biored_primary_task_transition.md`
+- `doc/historical/sentence_level_evidence_upgrade.md`
+- `doc/historical/biored_primary_task_transition.md`
 
 ## L6 Quickstart
 

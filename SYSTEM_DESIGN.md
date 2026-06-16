@@ -1,5 +1,7 @@
 # Biomedical Literature Intelligence System Design
 
+Last updated on: 2026-06-16 (America/Los_Angeles)
+
 This is the current project-level system design. The older single-task
 BioBERT NER framing has been superseded by a layered biomedical evidence
 platform.
@@ -9,6 +11,8 @@ Canonical detailed docs:
 - `doc/system_design_v2.md`: full layered design and progress tracker
 - `doc/end_to_end_data_flow.md`: current data movement through L0-L7
 - `doc/system_architecture_diagram.md`: quick visual map
+- `doc/data_flow_architecture.md`: contract boundaries and object transitions
+- `doc/unified_evidence_schema.md`: reusable evidence-layer contract
 
 ## 1. Current Objective
 
@@ -49,9 +53,10 @@ flowchart TB
     D --> N
 
     N --> K["L3 SQLite KB"]
-    K --> Q["L4 Structured Retrieval"]
-    Q --> S["L6 Evidence Bundle / Optional Summary"]
-    S --> O["L7 Answer Contract / UI / CSV / JSON"]
+    K --> Q["L4 Structured Retrieval<br/>legacy rows + unified evidence payload"]
+    Q --> S["L5 Agent Response<br/>legacy fields + unified bundle"]
+    S --> T["L6 Optional Summary<br/>consumer of unified bundle"]
+    T --> O["L7 Answer Contract / UI / CSV / JSON<br/>consumer of unified bundle"]
 ```
 
 ## 3. Implemented Layers
@@ -61,11 +66,11 @@ flowchart TB
 | L0 PubMed ingestion | Implemented for PubMed-backed task paths | `src/ingestion/pubmed_client.py` |
 | L1 extraction | Implemented as task-specific wrappers; BioRED supports local PubTator gold relations and 4A model-predicted relations over PubTator entities | `src/extraction/*_pipeline.py`, `src/extraction/biored_loader.py`, `src/extraction/biored_relation_infer.py`, `src/extraction/ner_infer.py` |
 | L2 normalization | Implemented rule-based alias lookup over local HGNC/MeSH/ChEBI snapshots | `src/normalization/rule_based.py` |
-| L3 KB | Implemented SQLite schema for papers, mentions, normalized entities, evidence sentences, BioRED relations, and relation provenance | `src/kb/schema.py`, `src/kb/writer.py` |
-| L4 retrieval | Implemented mention, sentence-evidence, and relation retrieval modes | `src/retrieval/sqlite_service.py`, `src/kb/query.py` |
-| L5 agent | Implemented deterministic read/refresh controller | `src/agent/controller.py` |
-| L6 LLM | Partial: evidence bundle and `none`/Ollama path; hosted BYO providers are intentionally not wired yet | `src/llm/evidence_bundle.py`, `src/llm/router.py` |
-| L7 output | Partial but implemented as a stable answer wrapper | `src/output/l7_answer.py`, `pipelines/run_l7_answer.py` |
+| L3 KB | Implemented SQLite schema for papers, mentions, normalized entities, evidence sentences, BioRED relations, and relation provenance including v1 provenance fields (`evidence_id`, `sentence_index`, `link_method`, nullable char offsets) | `src/kb/schema.py`, `src/kb/writer.py` |
+| L4 retrieval | Implemented mention, sentence-evidence, and relation retrieval modes; now also attaches unified evidence-layer payload sections | `src/retrieval/sqlite_service.py`, `src/kb/query.py` |
+| L5 agent | Implemented deterministic read/refresh controller; now returns unified evidence-layer payload sections and bundle alongside legacy fields | `src/agent/controller.py` |
+| L6 LLM | Partial: bundle construction now flows through the unified adapter path; `none`/Ollama path implemented; hosted BYO providers intentionally not wired yet | `src/llm/evidence_bundle.py`, `src/llm/router.py` |
+| L7 output | Partial but implemented as a stable answer wrapper over the evidence bundle | `src/output/l7_answer.py`, `pipelines/run_l7_answer.py` |
 
 BioRED mode boundary:
 
@@ -106,6 +111,20 @@ SQLite persistence writes:
 - `entity_relations`
 - `relation_provenance`
 
+Evidence-layer integration contract:
+
+- L4/L5 now expose unified payload sections in addition to legacy mode-specific
+  rows:
+  - `schema_version`
+  - `documents`
+  - `entities`
+  - `relations`
+  - `evidence`
+  - `provenance`
+- The unified schema is intentionally domain-agnostic and uses generic
+  `subject` / `object` relation endpoints rather than task-specific slots such
+  as gene-only or disease-only fields.
+
 ## 5. Query Modes
 
 The L4/L5 retrieval contract currently supports:
@@ -131,16 +150,25 @@ python -m pipelines.run_agent_query \
 
 ## 6. Current Engineering Gaps
 
-The remaining work is no longer "make BioBERT NER train once." The real gaps
-are platform hardening:
+The remaining work is no longer "make BioBERT NER train once." The current
+state is:
 
-1. Improve BioRED relation provenance quality, especially sentence selection and
-   char-offset links.
-2. Add migration/version tracking for SQLite schema and normalization snapshots.
-3. Add pagination/ranking for larger retrieval result sets.
-4. Wire provider-specific L6 clients only when needed, with citation
+- integration baseline: complete for v1
+- model quality line: still open
+
+Remaining platform hardening work:
+
+1. Keep L6/L7 consumer-only over the unified evidence bundle.
+2. Improve BioRED relation provenance quality beyond the current v1 fields,
+   especially sentence selection and exact char-offset links.
+3. Add migration/version tracking for SQLite schema and normalization snapshots.
+4. Add pagination/ranking for larger retrieval result sets.
+5. Wire provider-specific L6 clients only when needed, with citation
    post-validation.
-5. Harden L7/API output contracts beyond the current CLI/demo wrapper.
+6. Improve model-quality-line components:
+   - normalization quality
+   - relation extraction quality
+   - evidence ranking/scoring
 
 ## 7. Useful Entry Points
 

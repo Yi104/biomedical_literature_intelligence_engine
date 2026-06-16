@@ -299,6 +299,78 @@ Validation:
   relation provenance now returns `sentence_index`, `link_method`, and
   `evidence_id` as expected.
 
+### Repository structure documentation refresh
+
+What changed:
+- Updated `README.md` to describe the current repository structure and module
+  roles after the unified evidence contract and integration work.
+- Marked the old repository structure block in `doc/system_design_v2.md` as an
+  archived proposal instead of leaving it looking current.
+
+Why:
+- The project structure has shifted enough that older directory descriptions
+  were misleading and made the repository harder to navigate.
+
+Behavioral effect:
+- No runtime behavior changed.
+- Repository navigation guidance now aligns with the current code layout.
+
+### Historical documents moved under `doc/historical/`
+
+What changed:
+- Moved `doc/sentence_level_evidence_upgrade.md` to
+  `doc/historical/sentence_level_evidence_upgrade.md`.
+- Moved `doc/biored_primary_task_transition.md` to
+  `doc/historical/biored_primary_task_transition.md`.
+- Updated repository and design-document references to point to the new paths.
+
+Why:
+- These documents remain useful background context, but they should not sit in
+  the main design-document path as if they were current architecture specs.
+
+Behavioral effect:
+- No runtime behavior changed.
+- Historical design context is now separated more clearly from current
+  architecture documents.
+
+### Document timestamp convention for major design files
+
+What changed:
+- Added `Last updated on: 2026-06-16 (America/Los_Angeles)` under the title of
+  major current design documents and the main README:
+  - `README.md`
+  - `SYSTEM_DESIGN.md`
+  - `doc/system_design_v2.md`
+  - `doc/data_flow_architecture.md`
+  - `doc/end_to_end_data_flow.md`
+  - `doc/unified_evidence_schema.md`
+  - `doc/system_architecture_diagram.md`
+
+Why:
+- Large design documents become hard to trust when their freshness is unclear.
+- A visible timestamp makes it easier to know which documents reflect the
+  latest architecture and contract state.
+
+Behavioral effect:
+- No runtime behavior changed.
+- Major design documents now expose their recency directly at the top.
+
+### Historical document obsolescence timestamps
+
+What changed:
+- Added `Obsoleted on: 2026-06-16 (America/Los_Angeles)` to:
+  - `doc/historical/sentence_level_evidence_upgrade.md`
+  - `doc/historical/biored_primary_task_transition.md`
+
+Why:
+- Historical documents should make their status obvious at the top, not only by
+  directory placement.
+
+Behavioral effect:
+- No runtime behavior changed.
+- Historical documents now explicitly mark when they stopped being current
+  architecture references.
+
 
 ## Recording rule
 

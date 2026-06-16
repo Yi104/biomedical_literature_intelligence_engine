@@ -1,5 +1,7 @@
 # System Architecture Diagram
 
+Last updated on: 2026-06-16 (America/Los_Angeles)
+
 This diagram is the quick orientation map for the platform.
 
 ## 1. Platform Overview

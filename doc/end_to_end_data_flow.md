@@ -1,5 +1,7 @@
 # End-to-End Data Flow
 
+Last updated on: 2026-06-16 (America/Los_Angeles)
+
 This document explains how data moves through the current biomedical
 knowledge-base workflow. It is intended as the first reference to read when
 returning to the project after a break.
@@ -314,8 +316,8 @@ PubTator file and supports two relation sources:
 | Query SQLite through a stable L4 contract | `src/retrieval/sqlite_service.py` |
 | Orchestrate read-only or refresh evidence paths | `src/agent/controller.py` |
 | Run L5 from the command line | `pipelines/run_agent_query.py` |
-| Explain the L3-L5 evidence upgrade | `doc/sentence_level_evidence_upgrade.md` |
-| Explain the BioRED primary-task transition | `doc/biored_primary_task_transition.md` |
+| Explain the L3-L5 evidence upgrade | `doc/historical/sentence_level_evidence_upgrade.md` |
+| Explain the BioRED primary-task transition | `doc/historical/biored_primary_task_transition.md` |
 
 ## 8. Useful Commands
 

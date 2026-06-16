@@ -1,5 +1,7 @@
 # BioRED Primary Task Transition
 
+Obsoleted on: 2026-06-16 (America/Los_Angeles)
+
 ## Decision
 
 The project primary evidence task is now defined as:

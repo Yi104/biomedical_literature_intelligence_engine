@@ -1,5 +1,7 @@
 # Unified Evidence Schema (V1 Proposal)
 
+Last updated on: 2026-06-16 (America/Los_Angeles)
+
 ## Purpose
 
 This document defines the target intermediate contract for turning biomedical

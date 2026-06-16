@@ -1,5 +1,7 @@
 # Data Flow Architecture
 
+Last updated on: 2026-06-16 (America/Los_Angeles)
+
 This document explains the platform as a data flow system rather than only a
 set of modules. Its main purpose is to answer four questions clearly:
 

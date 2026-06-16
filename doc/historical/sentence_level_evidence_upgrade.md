@@ -1,5 +1,7 @@
 # Sentence-Level Evidence Upgrade (L3-L5 v1.1)
 
+Obsoleted on: 2026-06-16 (America/Los_Angeles)
+
 ## Why This Upgrade Exists
 
 The first complete backend flow stored normalized entity mentions:
