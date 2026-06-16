@@ -197,6 +197,9 @@ def test_relation_writer_and_queries_roundtrip(tmp_path):
                 "relation_source": "biored_pubtator",
                 "novelty": "Novel",
                 "confidence": 0.9,
+                "link_method": "sentence_text_match_v1",
+                "char_start": None,
+                "char_end": None,
             }
         ]
     )
@@ -218,6 +221,11 @@ def test_relation_writer_and_queries_roundtrip(tmp_path):
     assert rows_by_pmid[0]["provenance"][0]["novelty"] == "Novel"
     assert rows_by_pmid[0]["provenance"][0]["provenance_source"] == "biored_pubtator"
     assert rows_by_pmid[0]["provenance"][0]["confidence"] == 0.9
+    assert rows_by_pmid[0]["provenance"][0]["sentence_index"] == 0
+    assert rows_by_pmid[0]["provenance"][0]["link_method"] == "sentence_text_match_v1"
+    assert rows_by_pmid[0]["provenance"][0]["char_start"] is None
+    assert rows_by_pmid[0]["provenance"][0]["char_end"] is None
+    assert rows_by_pmid[0]["provenance"][0]["evidence_id"] is not None
 
     rows_by_pair = get_relations_by_entity_pair(
         "672", "D001943", task="biored", db_path=db_path

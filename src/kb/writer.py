@@ -9,6 +9,15 @@ from src.kb.evidence import mention_appears_in_sentence, split_abstract_into_sen
 from src.kb.schema import DEFAULT_DB_PATH, init_sqlite_schema
 
 
+def _safe_int_or_none(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def write_pipeline_outputs_to_sqlite(
     papers_df: pd.DataFrame,
     entities_df: pd.DataFrame,
@@ -192,6 +201,7 @@ def write_pipeline_outputs_with_relations_to_sqlite(
             relation_type = str(row.get("relation_type", ""))
             e1_norm = str(row.get("entity1_normalized_id", ""))
             e2_norm = str(row.get("entity2_normalized_id", ""))
+            evidence_sentence = str(row.get("evidence_sentence", ""))
             conn.execute(
                 """
                 INSERT OR IGNORE INTO entity_relations
@@ -229,19 +239,39 @@ def write_pipeline_outputs_with_relations_to_sqlite(
             if not relation_row:
                 continue
             relation_id = int(relation_row[0])
+            evidence_row = conn.execute(
+                """
+                SELECT evidence_id, sentence_index
+                FROM evidence_sentences
+                WHERE pmid = ? AND task = ? AND sentence_text = ?
+                ORDER BY evidence_id
+                LIMIT 1
+                """,
+                (pmid, task, evidence_sentence),
+            ).fetchone()
+            evidence_id = int(evidence_row[0]) if evidence_row else None
+            sentence_index = int(evidence_row[1]) if evidence_row else _safe_int_or_none(
+                row.get("sentence_index")
+            )
             conn.execute(
                 """
                 INSERT OR IGNORE INTO relation_provenance
                 (
-                    relation_id, evidence_sentence, novelty,
+                    relation_id, evidence_id, evidence_sentence, sentence_index,
+                    novelty, link_method, char_start, char_end,
                     provenance_source, confidence
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     relation_id,
-                    str(row.get("evidence_sentence", "")),
+                    evidence_id,
+                    evidence_sentence,
+                    sentence_index,
                     str(row.get("novelty", "")),
+                    str(row.get("link_method", "sentence_text_match_v1")),
+                    _safe_int_or_none(row.get("char_start")),
+                    _safe_int_or_none(row.get("char_end")),
                     relation_source,
                     float(row.get("confidence", 1.0)),
                 ),

@@ -189,7 +189,8 @@ def get_relations_by_pmid(
         for row in results:
             pcur = conn.execute(
                 """
-                SELECT evidence_sentence, novelty, provenance_source, confidence
+                SELECT evidence_id, evidence_sentence, sentence_index, novelty,
+                       link_method, char_start, char_end, provenance_source, confidence
                 FROM relation_provenance
                 WHERE relation_id = ?
                 ORDER BY provenance_id
@@ -234,7 +235,8 @@ def get_relations_by_entity_pair(
         for row in results:
             pcur = conn.execute(
                 """
-                SELECT evidence_sentence, novelty, provenance_source, confidence
+                SELECT evidence_id, evidence_sentence, sentence_index, novelty,
+                       link_method, char_start, char_end, provenance_source, confidence
                 FROM relation_provenance
                 WHERE relation_id = ?
                 ORDER BY provenance_id

@@ -83,57 +83,6 @@ Validation:
 - Added unit tests for pointer resolution and tie-breaking.
 - Full test suite passed after the change.
 
-## 2026-06-15
-
-### Unified evidence-layer contract and refactor plan
-
-What changed:
-- Added `doc/unified_evidence_schema.md`.
-- Added `doc/evidence_schema_refactor_plan.md`.
-- Added `doc/data_flow_architecture.md`.
-- Linked the new architecture and schema documents from `doc/system_design_v2.md`.
-
-Why:
-- The repository had extraction contracts, SQLite tables, and L6/L7 wrappers,
-  but did not yet define one stable platform-level evidence contract.
-- The repository also lacked one document that explicitly shows where
-  extraction, storage, retrieval, agent, and evidence contracts change across
-  the pipeline.
-- The new documents make the project boundary explicit:
-  - current state: extraction + normalization + SQLite + partial provenance
-  - target state: reusable `Document / Entity / Relation / Evidence / Provenance`
-    contract for `bioAI-target` and other downstream KB integrations
-
-Behavioral effect:
-- No runtime behavior changed.
-- Project documentation now distinguishes:
-  - extraction-layer outputs
-  - evidence-layer objects
-  - the migration path between them
-
-Operational effect:
-- Future code changes can now be evaluated against a written schema target
-  instead of ad hoc bundle shapes.
-
-### Domain-agnostic evidence schema clarification
-
-What changed:
-- Updated `src/contracts/unified_evidence_schema.py` comments to make entity
-  types and relation endpoints explicitly open-ended.
-- Updated `doc/unified_evidence_schema.md` with subject/object examples beyond
-  gene-disease, including drug-disease and variant-disease style relations.
-- Updated `doc/data_flow_architecture.md` to state that the unified bundle
-  should remain reusable across multiple biomedical relation domains.
-
-Why:
-- The schema should not read as BioRED-only or gene-disease-only if it is
-  intended to support future integration into other knowledge base settings.
-
-Behavioral effect:
-- No runtime behavior changed.
-- The contract definition is now clearer about how `subject` and `object`
-  should be interpreted in non-BioRED domains.
-
 ### 4A runtime logging
 
 What changed:
@@ -206,8 +155,38 @@ Validation:
 - Added unit tests for logging helper setup and manifest finalization.
 - Verified a real CLI run creates persistent artifacts.
 
-
 ## 2026-06-16
+
+### Unified evidence-layer contract and refactor plan
+
+What changed:
+- Added `doc/unified_evidence_schema.md`.
+- Added `doc/evidence_schema_refactor_plan.md`.
+- Added `doc/data_flow_architecture.md`.
+- Linked the new architecture and schema documents from `doc/system_design_v2.md`.
+
+Why:
+- The repository had extraction contracts, SQLite tables, and L6/L7 wrappers,
+  but did not yet define one stable platform-level evidence contract.
+- The repository also lacked one document that explicitly shows where
+  extraction, storage, retrieval, agent, and evidence contracts change across
+  the pipeline.
+- The new documents make the project boundary explicit:
+  - current state: extraction + normalization + SQLite + partial provenance
+  - target state: reusable `Document / Entity / Relation / Evidence / Provenance`
+    contract for `bioAI-target` and other downstream KB integrations
+
+Behavioral effect:
+- No runtime behavior changed.
+- Project documentation now distinguishes:
+  - extraction-layer outputs
+  - evidence-layer objects
+  - the migration path between them
+
+Operational effect:
+- Future code changes can now be evaluated against a written schema target
+  instead of ad hoc bundle shapes.
+
 ### Unified evidence contract code scaffolding
 
 What changed:
@@ -268,6 +247,57 @@ Validation:
 - Updated files compiled successfully with `python -m py_compile`.
 - Environment-level runtime verification remains limited by the same external
   Python instability observed during `pytest` execution in this session.
+
+### Domain-agnostic evidence schema clarification
+
+What changed:
+- Updated `src/contracts/unified_evidence_schema.py` comments to make entity
+  types and relation endpoints explicitly open-ended.
+- Updated `doc/unified_evidence_schema.md` with subject/object examples beyond
+  gene-disease, including drug-disease and variant-disease style relations.
+- Updated `doc/data_flow_architecture.md` to state that the unified bundle
+  should remain reusable across multiple biomedical relation domains.
+
+Why:
+- The schema should not read as BioRED-only or gene-disease-only if it is
+  intended to support future integration into other knowledge base settings.
+
+Behavioral effect:
+- No runtime behavior changed.
+- The contract definition is now clearer about how `subject` and `object`
+  should be interpreted in non-BioRED domains.
+
+### Provenance v1 storage and retrieval upgrade
+
+What changed:
+- Updated `src/kb/schema.py` so `relation_provenance` now supports:
+  - `evidence_id`
+  - `sentence_index`
+  - `link_method`
+  - `char_start`
+  - `char_end`
+- Updated `src/kb/writer.py` to populate those provenance fields when writing
+  relation outputs.
+- Updated `src/kb/query.py` to return the new provenance fields.
+- Updated `src/contracts/evidence_adapters.py` so unified provenance objects
+  can carry the stronger provenance payload.
+- Extended KB and retrieval tests for provenance roundtrip assertions.
+
+Why:
+- The repository already had relation provenance as text plus confidence, but
+  the integration layer needed explicit provenance structure rather than only a
+  sentence string.
+
+Behavioral effect:
+- Relation evidence now carries sentence-level provenance metadata through
+  SQLite, query, and unified bundle adaptation.
+- Offsets remain nullable in V1, but the fields now exist end to end.
+
+Validation:
+- Updated modules compiled successfully with `python -m py_compile`.
+- Direct SQLite roundtrip validation passed with a focused Python script:
+  relation provenance now returns `sentence_index`, `link_method`, and
+  `evidence_id` as expected.
 
 
 ## Recording rule

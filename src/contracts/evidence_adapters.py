@@ -354,7 +354,11 @@ def build_unified_evidence_bundle_from_agent_result(
                         prov_row,
                         pmid=relation["pmid"],
                         relation_id=relation_id,
-                        evidence_id=ev["evidence_id"],
+                        evidence_id=(
+                            f"ev:{relation['pmid']}:{prov_row.get('sentence_index')}"
+                            if prov_row.get("sentence_index", None) not in (None, "")
+                            else ev["evidence_id"]
+                        ),
                         linked_entities=[
                             relation["subject"]["entity_id"],
                             relation["object"]["entity_id"],

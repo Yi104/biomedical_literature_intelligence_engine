@@ -14,6 +14,20 @@ def _find_repo_root(start: Path) -> Path:
     raise RuntimeError(f"Could not locate repo root from: {start}")
 
 
+def _ensure_column(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    column: str,
+    definition: str,
+) -> None:
+    existing = {
+        str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def init_sqlite_schema(db_path: str = DEFAULT_DB_PATH) -> str:
     """
     Create SQLite database file and minimal v1 tables if they do not exist.
@@ -129,14 +143,49 @@ def init_sqlite_schema(db_path: str = DEFAULT_DB_PATH) -> str:
             CREATE TABLE IF NOT EXISTS relation_provenance (
                 provenance_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 relation_id INTEGER NOT NULL,
+                evidence_id INTEGER,
                 evidence_sentence TEXT,
+                sentence_index INTEGER,
                 novelty TEXT,
+                link_method TEXT,
+                char_start INTEGER,
+                char_end INTEGER,
                 provenance_source TEXT NOT NULL,
                 confidence REAL,
                 UNIQUE(relation_id, evidence_sentence, provenance_source),
                 FOREIGN KEY(relation_id) REFERENCES entity_relations(relation_id)
             )
             """
+        )
+        _ensure_column(
+            conn,
+            table="relation_provenance",
+            column="evidence_id",
+            definition="INTEGER",
+        )
+        _ensure_column(
+            conn,
+            table="relation_provenance",
+            column="sentence_index",
+            definition="INTEGER",
+        )
+        _ensure_column(
+            conn,
+            table="relation_provenance",
+            column="link_method",
+            definition="TEXT",
+        )
+        _ensure_column(
+            conn,
+            table="relation_provenance",
+            column="char_start",
+            definition="INTEGER",
+        )
+        _ensure_column(
+            conn,
+            table="relation_provenance",
+            column="char_end",
+            definition="INTEGER",
         )
 
         conn.execute(

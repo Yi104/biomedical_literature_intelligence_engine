@@ -159,6 +159,7 @@ def test_query_kb_relation_modes(tmp_path):
     assert by_pmid["results"][0]["relation_type"] == "Association"
     assert by_pmid["relations"][0]["type"] == "Association"
     assert by_pmid["provenance"][0]["novelty"] == "Novel"
+    assert by_pmid["provenance"][0]["method"] == "sentence_text_match_v1"
 
     by_pair = query_kb(
         mode="relation_entity_pair",
@@ -170,3 +171,4 @@ def test_query_kb_relation_modes(tmp_path):
     assert by_pair["count"] == 1
     assert by_pair["results"][0]["provenance"][0]["novelty"] == "Novel"
     assert by_pair["evidence"][0]["supports"]["relation_id"] == by_pair["relations"][0]["relation_id"]
+    assert by_pair["provenance"][0]["sentence_index"] == 0
