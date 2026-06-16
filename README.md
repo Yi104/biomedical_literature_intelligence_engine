@@ -144,6 +144,20 @@ This includes changes that:
 - change evaluation interpretation or baseline metrics
 - add or remove operational traceability such as logs or manifests
 
+## Runtime Records
+
+Selected CLI entrypoints now persist per-run artifacts under `outputs/logs/`.
+
+Current artifacts:
+- `run.log`: console log stream persisted to disk
+- `manifest.json`: run arguments, completion status, summary, and failure traceback when applicable
+
+Directory layout:
+
+```text
+outputs/logs/<command_name>/<timestamp>/
+```
+
 ## Troubleshooting
 
 ### 1) `ModuleNotFoundError: No module named 'src'`

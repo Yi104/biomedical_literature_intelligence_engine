@@ -6,6 +6,7 @@ import logging
 
 from src.agent.controller import run_agent_controller
 from src.kb.schema import DEFAULT_DB_PATH
+from src.logging_utils import finalize_run_manifest, setup_run_logging
 
 
 def main() -> None:
@@ -56,32 +57,55 @@ def main() -> None:
     )
     parser.add_argument("--log_level", type=str, default="INFO")
     args = parser.parse_args()
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper(), logging.INFO),
-        format="%(levelname)s %(name)s: %(message)s",
+    run_artifacts = setup_run_logging(
+        command_name="run_agent_query",
+        log_level=args.log_level,
+        args=vars(args),
     )
 
-    result = run_agent_controller(
-        task=args.task,
-        retrieval_mode=args.retrieval_mode,
-        pmid=args.pmid,
-        normalized_id=args.normalized_id,
-        entity_type=args.entity_type,
-        keyword=args.keyword,
-        entity1_normalized_id=args.entity1_normalized_id,
-        entity2_normalized_id=args.entity2_normalized_id,
-        search_query=args.search_query,
-        retmax=args.retmax,
-        max_length=args.max_length,
-        model_path=args.model_path,
-        allow_refresh=args.allow_refresh,
-        smoke=args.smoke,
-        data_path=args.data_path,
-        relation_mode=args.relation_mode,
-        confidence_threshold=args.confidence_threshold,
-        db_path=args.db_path,
-    )
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    try:
+        result = run_agent_controller(
+            task=args.task,
+            retrieval_mode=args.retrieval_mode,
+            pmid=args.pmid,
+            normalized_id=args.normalized_id,
+            entity_type=args.entity_type,
+            keyword=args.keyword,
+            entity1_normalized_id=args.entity1_normalized_id,
+            entity2_normalized_id=args.entity2_normalized_id,
+            search_query=args.search_query,
+            retmax=args.retmax,
+            max_length=args.max_length,
+            model_path=args.model_path,
+            allow_refresh=args.allow_refresh,
+            smoke=args.smoke,
+            data_path=args.data_path,
+            relation_mode=args.relation_mode,
+            confidence_threshold=args.confidence_threshold,
+            db_path=args.db_path,
+        )
+        finalize_run_manifest(
+            run_artifacts,
+            status="completed",
+            args=vars(args),
+            summary={
+                "status": result.get("status"),
+                "count": result.get("count"),
+                "refreshed": result.get("refreshed"),
+                "task": result.get("task"),
+                "retrieval_mode": result.get("retrieval_mode"),
+            },
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    except Exception as exc:
+        logging.getLogger(__name__).exception("run_agent_query failed")
+        finalize_run_manifest(
+            run_artifacts,
+            status="failed",
+            args=vars(args),
+            error=exc,
+        )
+        raise
 
 
 if __name__ == "__main__":

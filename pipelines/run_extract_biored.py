@@ -4,6 +4,7 @@ import argparse
 import logging
 
 from src.extraction.biored_pipeline import run_biored_pipeline
+from src.logging_utils import finalize_run_manifest, setup_run_logging
 
 
 def main() -> None:
@@ -33,27 +34,50 @@ def main() -> None:
     parser.add_argument("--confidence_threshold", type=float, default=0.5)
     parser.add_argument("--log_level", type=str, default="INFO")
     args = parser.parse_args()
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper(), logging.INFO),
-        format="%(levelname)s %(name)s: %(message)s",
+    run_artifacts = setup_run_logging(
+        command_name="run_extract_biored",
+        log_level=args.log_level,
+        args=vars(args),
     )
 
-    papers_df, entities_df, relations_df = run_biored_pipeline(
-        query=args.query,
-        smoke=args.smoke,
-        data_path=args.data_path,
-        max_docs=args.max_docs,
-        relation_mode=args.relation_mode,
-        relation_model_path=args.relation_model_path,
-        confidence_threshold=args.confidence_threshold,
-    )
-    print(
-        "OK: biored "
-        f"mode={'smoke' if args.smoke else 'live'} relation_mode={args.relation_mode} "
-        f"papers={len(papers_df)} entities={len(entities_df)} relations={len(relations_df)}"
-    )
-    if args.smoke:
-        print(relations_df.to_string(index=False))
+    try:
+        papers_df, entities_df, relations_df = run_biored_pipeline(
+            query=args.query,
+            smoke=args.smoke,
+            data_path=args.data_path,
+            max_docs=args.max_docs,
+            relation_mode=args.relation_mode,
+            relation_model_path=args.relation_model_path,
+            confidence_threshold=args.confidence_threshold,
+        )
+        summary = {
+            "papers": len(papers_df),
+            "entities": len(entities_df),
+            "relations": len(relations_df),
+            "relation_mode": args.relation_mode,
+        }
+        finalize_run_manifest(
+            run_artifacts,
+            status="completed",
+            args=vars(args),
+            summary=summary,
+        )
+        print(
+            "OK: biored "
+            f"mode={'smoke' if args.smoke else 'live'} relation_mode={args.relation_mode} "
+            f"papers={len(papers_df)} entities={len(entities_df)} relations={len(relations_df)}"
+        )
+        if args.smoke:
+            print(relations_df.to_string(index=False))
+    except Exception as exc:
+        logging.getLogger(__name__).exception("run_extract_biored failed")
+        finalize_run_manifest(
+            run_artifacts,
+            status="failed",
+            args=vars(args),
+            error=exc,
+        )
+        raise
 
 
 if __name__ == "__main__":

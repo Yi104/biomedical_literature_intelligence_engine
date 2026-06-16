@@ -7,6 +7,7 @@ import logging
 from src.agent.controller import run_agent_controller
 from src.kb.schema import DEFAULT_DB_PATH
 from src.llm.router import LLMOptions, summarize_agent_result_with_provider
+from src.logging_utils import finalize_run_manifest, setup_run_logging
 from src.output.l7_answer import build_l7_answer
 
 
@@ -51,51 +52,73 @@ def main() -> None:
     parser.add_argument("--max_tokens", type=int, default=512)
     parser.add_argument("--log_level", type=str, default="INFO")
     args = parser.parse_args()
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper(), logging.INFO),
-        format="%(levelname)s %(name)s: %(message)s",
+    run_artifacts = setup_run_logging(
+        command_name="run_l7_answer",
+        log_level=args.log_level,
+        args=vars(args),
     )
 
-    agent_result = run_agent_controller(
-        task=args.task,
-        retrieval_mode=args.retrieval_mode,
-        pmid=args.pmid,
-        normalized_id=args.normalized_id,
-        entity_type=args.entity_type,
-        keyword=args.keyword,
-        entity1_normalized_id=args.entity1_normalized_id,
-        entity2_normalized_id=args.entity2_normalized_id,
-        search_query=args.search_query,
-        retmax=args.retmax,
-        max_length=args.max_length,
-        model_path=args.model_path,
-        allow_refresh=args.allow_refresh,
-        smoke=args.smoke,
-        data_path=args.data_path,
-        relation_mode=args.relation_mode,
-        confidence_threshold=args.confidence_threshold,
-        db_path=args.db_path,
-    )
+    try:
+        agent_result = run_agent_controller(
+            task=args.task,
+            retrieval_mode=args.retrieval_mode,
+            pmid=args.pmid,
+            normalized_id=args.normalized_id,
+            entity_type=args.entity_type,
+            keyword=args.keyword,
+            entity1_normalized_id=args.entity1_normalized_id,
+            entity2_normalized_id=args.entity2_normalized_id,
+            search_query=args.search_query,
+            retmax=args.retmax,
+            max_length=args.max_length,
+            model_path=args.model_path,
+            allow_refresh=args.allow_refresh,
+            smoke=args.smoke,
+            data_path=args.data_path,
+            relation_mode=args.relation_mode,
+            confidence_threshold=args.confidence_threshold,
+            db_path=args.db_path,
+        )
 
-    options = LLMOptions(
-        provider=args.provider,
-        model=args.llm_model,
-        base_url=args.base_url,
-        temperature=args.temperature,
-        max_tokens=args.max_tokens,
-    )
-    l6_result = summarize_agent_result_with_provider(
-        question=args.question,
-        agent_result=agent_result,
-        options=options,
-    )
+        options = LLMOptions(
+            provider=args.provider,
+            model=args.llm_model,
+            base_url=args.base_url,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+        )
+        l6_result = summarize_agent_result_with_provider(
+            question=args.question,
+            agent_result=agent_result,
+            options=options,
+        )
 
-    l7_result = build_l7_answer(
-        question=args.question,
-        agent_result=agent_result,
-        l6_result=l6_result,
-    )
-    print(json.dumps(l7_result, ensure_ascii=False, indent=2))
+        l7_result = build_l7_answer(
+            question=args.question,
+            agent_result=agent_result,
+            l6_result=l6_result,
+        )
+        finalize_run_manifest(
+            run_artifacts,
+            status="completed",
+            args=vars(args),
+            summary={
+                "status": l7_result.get("status"),
+                "task": l7_result.get("task"),
+                "citation_count": len(l7_result.get("citations", [])),
+                "claim_count": len(l7_result.get("claims", [])),
+            },
+        )
+        print(json.dumps(l7_result, ensure_ascii=False, indent=2))
+    except Exception as exc:
+        logging.getLogger(__name__).exception("run_l7_answer failed")
+        finalize_run_manifest(
+            run_artifacts,
+            status="failed",
+            args=vars(args),
+            error=exc,
+        )
+        raise
 
 
 if __name__ == "__main__":

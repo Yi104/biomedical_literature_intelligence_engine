@@ -116,6 +116,47 @@ Validation:
 - Unit tests passed after log instrumentation.
 - Verified on a real one-document 4A run and observed expected INFO logs.
 
+### Automatic log persistence and run manifests
+
+What changed:
+- Added `src/logging_utils.py`.
+- CLI entrypoints now create per-run log directories under `outputs/logs/`.
+- Each run writes:
+  - `run.log`
+  - `manifest.json`
+
+Covered entrypoints:
+- `pipelines/run_extract_biored.py`
+- `pipelines/run_ingest_to_sqlite.py`
+- `pipelines/run_agent_query.py`
+- `pipelines/run_l6_summary.py`
+- `pipelines/run_l7_answer.py`
+
+Current log layout:
+
+```text
+outputs/logs/<command_name>/<timestamp>/run.log
+outputs/logs/<command_name>/<timestamp>/manifest.json
+```
+
+Manifest contents:
+- command name
+- run id
+- timestamp
+- status
+- args
+- log path
+- summary
+- error traceback on failure
+
+Why:
+- Console logs alone were not sufficient for post-run quality control.
+- Each important run now leaves a durable record that can be reviewed later.
+
+Validation:
+- Added unit tests for logging helper setup and manifest finalization.
+- Verified a real CLI run creates persistent artifacts.
+
 ## Recording rule
 
 Add an entry here when a change does at least one of the following:
