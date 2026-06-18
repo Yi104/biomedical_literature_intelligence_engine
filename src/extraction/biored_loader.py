@@ -98,6 +98,7 @@ def _parse_pubtator_doc(lines: List[str]) -> Tuple[Dict, List[_BioRedEntity], Li
 
 
 def _select_evidence_sentence(abstract: str, head_text: str, tail_text: str) -> str:
+    # evidence sentence is heuristic selection
     for sentence in split_abstract_into_sentences(abstract):
         s = sentence.lower()
         if head_text.lower() in s and tail_text.lower() in s:

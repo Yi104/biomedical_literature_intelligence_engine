@@ -371,6 +371,47 @@ Behavioral effect:
 - Historical documents now explicitly mark when they stopped being current
   architecture references.
 
+### Clarified BioRED benchmark role versus future PubTator coverage role
+
+What changed:
+- Updated `doc/system_design_v2.md` to explicitly distinguish:
+  - `BioRED` as the current gold benchmark and training/evaluation anchor
+  - `PubTator` / `PubTator 3` as a future coverage/reference source
+  - runtime new-abstract inference versus gold evaluation semantics
+- Updated `SYSTEM_DESIGN.md` with the same short-form clarification.
+- Updated touched document timestamps to `2026-06-17`.
+
+Why:
+- The previous wording did not clearly explain whether new abstract inference
+  should be judged against PubTator, or what role PubTator should play in the
+  architecture.
+- The architecture now states that BioRED calibrates quality, while PubTator
+  is a future non-gold coverage layer.
+
+Behavioral effect:
+- No runtime behavior changed.
+- The design docs now better match the actual current system boundary and the
+  intended next-stage architecture.
+
+### System design terminology corrected from NER-only to extraction-layer wording
+
+What changed:
+- Updated `doc/system_design_v2.md` so L1 is described as entity and relation
+  extraction rather than as a BioBERT-NER-only layer.
+- Updated the task status table in `doc/system_design_v2.md` to reflect the
+  current BioRED relation path.
+- Updated `SYSTEM_DESIGN.md` diagram text so BC5CDR and JNLPBA are described as
+  entity-extraction paths rather than "PubMed + BioBERT NER" only.
+
+Why:
+- The project has already moved beyond an NER-only framing.
+- Keeping system design language at the NER-only level would misdescribe the
+  current primary-task architecture and mislead later quality work.
+
+Behavioral effect:
+- No runtime behavior changed.
+- System design wording now better reflects the current extraction scope.
+
 
 ## Recording rule
 

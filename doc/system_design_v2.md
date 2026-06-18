@@ -1,6 +1,6 @@
 # Biomedical Literature Intelligence System Design (V2)
 
-Last updated on: 2026-06-16 (America/Los_Angeles)
+Last updated on: 2026-06-17 (America/Los_Angeles)
 
 ## 1. Objective
 
@@ -38,6 +38,46 @@ Task separation:
 - `JNLPBA` remains an implemented broader entity-discovery auxiliary dataset
 - The platform shares ingestion, retrieval, KB, and UI layers, but keeps task-specific label spaces and outputs separate
 
+## 1A. Dataset and Resource Roles
+
+The current architecture depends on a clear distinction between:
+
+1. `BioRED` as a high-quality gold benchmark and training/evaluation anchor
+2. `PubTator` / `PubTator 3` as a future coverage source for broader runtime use
+3. task-specific supporting datasets such as `BC5CDR` and `JNLPBA`
+
+Role split:
+
+- `BioRED`
+  - role: gold benchmark, relation-training anchor, error-analysis anchor
+  - use: define the primary gene/protein-disease relation task and calibrate
+    relation/evidence quality
+  - current status: implemented and actively used
+
+- `PubTator` / `PubTator 3`
+  - role: coverage source, candidate/reference annotation source, possible
+    future silver/weak-supervision source
+  - use: expand runtime literature coverage after the BioRED-calibrated
+    evidence path is stable
+  - current status: not yet integrated as a general runtime ingestion path
+
+- `BC5CDR`
+  - role: chemical-disease baseline and workflow support dataset
+  - use: retained NER/normalization/retrieval baseline, not the primary
+    gene-disease relation benchmark
+
+- `JNLPBA`
+  - role: broader entity-discovery auxiliary dataset
+  - use: retained for biomedical entity coverage experiments, not the primary
+    relation benchmark
+
+Important non-goal:
+
+- The current project is **not** intended to ingest the entire PubTator corpus
+  into the local system as a first step.
+- The intended long-term direction is query-time literature retrieval plus
+  selective use of external coverage annotations.
+
 ## 2. Layered Architecture
 
 ### L0. Data Layer (PubMed Ingestion)
@@ -57,27 +97,44 @@ Outputs:
 
 - Raw paper records persisted to KB
 
-### L1. Extraction Layer (BioBERT NER)
+Current boundary:
+
+- New PubMed abstracts can already enter the system through the ingestion path.
+- What is still incomplete is the primary-task extraction path for turning new
+  abstracts into BioRED-style relation evidence at runtime.
+
+### L1. Extraction Layer (Entity and Relation Extraction)
 
 Responsibilities:
 
-- Split abstracts into sentences
-- Run BioBERT token classification
-- Produce mention spans, entity types, and confidence
+- Parse task-specific source annotations or run extraction models
+- Produce entity mentions, normalized-ready entity records, and when
+  applicable relation candidates or relation rows
+- Support both entity-centric baseline paths and relation-centric primary-task
+  paths
 
 Inputs:
 
-- Paper abstracts
+- Paper abstracts or task-specific annotated sources such as local BioRED
+  PubTator files
 
 Outputs:
 
-- Mention-level extraction records linked to sentence and PMID
+- Entity-level extraction records linked to PMID
+- Relation-level records for relation-aware task paths such as BioRED
 
 Task-specific models:
 
 - `BioRED` target: gene/protein, disease, and relation-aware evidence extraction
-- `BC5CDR` model: chemical/disease evidence extraction
+- `BC5CDR` model: chemical/disease entity extraction baseline
 - `JNLPBA` model: broader biomedical entity discovery
+
+Current boundary:
+
+- For `BioRED`, the implemented live path is still centered on local BioRED
+  PubTator files.
+- A true "new abstract -> BioRED-style entity extraction -> relation inference"
+  path is not yet fully implemented.
 
 ### L2. Normalization Layer
 
@@ -255,6 +312,53 @@ Current status note:
 - The remaining cleanup item is to keep L6/L7 purely consumer-oriented over the
   unified bundle and avoid future dependence on ad hoc retrieval row shapes.
 
+## 2B. Runtime Inference Semantics
+
+This section clarifies how new-abstract inference should be interpreted.
+
+### Current intended runtime logic
+
+For a new user question:
+
+```text
+question
+  -> PubMed retrieval
+  -> abstract ingestion
+  -> entity extraction / normalization
+  -> candidate generation
+  -> relation inference
+  -> evidence objects
+  -> target assessment / downstream answer
+```
+
+### Current role of the BioRED-trained model
+
+- The BioRED-trained relation model is the current baseline model for the
+  primary gene/protein-disease relation task.
+- Its role is to provide a first runtime inference path after candidate pairs
+  are generated.
+- It is calibrated against BioRED gold data, not against PubTator as a gold
+  reference.
+
+### Current role of PubTator in runtime inference
+
+- PubTator is **not** currently the main runtime judge for new abstract
+  inference.
+- PubTator is better understood as a future coverage/reference source that may
+  later help with:
+  - entity coverage
+  - relation candidate support
+  - non-gold evidence/reference comparison
+
+### Important comparison rule
+
+- New abstract inference should not be defined as "run the model and always
+  compare against PubTator."
+- Instead:
+  - `BioRED` calibrates model quality
+  - runtime inference produces evidence objects
+  - `PubTator` may later be added as a separate non-gold coverage layer
+
 Implemented L6 bundle contract (v1):
 
 ```json
@@ -359,6 +463,8 @@ Next priority after integration baseline:
 1. Improve normalization quality and ambiguity handling.
 2. Improve relation extraction quality beyond the current BioRED baseline.
 3. Add evidence ranking/scoring for better downstream retrieval usefulness.
+4. Design the future `PubTator` coverage-source integration path explicitly,
+   rather than treating it as already present.
 
 ## 3. Historical / Archived Design Notes
 
@@ -695,6 +801,9 @@ Boundary:
 
 - Three-table flow exists and is runnable: `papers`, `entities`, `relations`.
 - Current live path is dataset-loader based (BioRED PubTator annotations), not yet a trained relation inference model.
+- Current relation path includes both:
+  - loader-based gold relation rows from BioRED PubTator files
+  - trained baseline relation inference over BioRED entities
 
 ### Baseline Task B: Chemical-Disease Evidence (BC5CDR, Implemented)
 
@@ -768,7 +877,7 @@ Status legend:
 | Layer | Status | Current Evidence in Repo | Gap to Close |
 |---|---|---|---|
 | L0 Data (PubMed ingestion) | `DONE` | `src/ingestion/pubmed_client.py` supports PubMed search + abstract fetch + year/journal filters and is integrated in runnable task pipelines | Add persistent ingestion log/dedup/versioning if needed |
-| L1 Extraction (BioBERT NER / Dataset Loader) | `PARTIAL` | `src/extraction/ner_infer.py` runs NER baselines; `src/extraction/biored_loader.py` and `src/extraction/biored_pipeline.py` run live BioRED loader-based relation extraction | Add a trained relation inference path beyond loader annotations |
+| L1 Extraction (Entity / Relation Extraction) | `PARTIAL` | `src/extraction/ner_infer.py` runs entity baselines; `src/extraction/biored_loader.py`, `src/extraction/biored_pipeline.py`, and `src/extraction/biored_relation_infer.py` cover the current BioRED relation path | Add a fully general new-abstract primary-task extraction path beyond current BioRED-centered inputs |
 | L2 Normalization | `DONE` | `src/normalization/rule_based.py` loads local HGNC/MeSH/ChEBI alias CSVs, maps IDs/labels, and exposes confidence/source fields | Improve ambiguous-alias handling and version mapping snapshots |
 | L3 Knowledge Base (SQLite) | `DONE` | `src/kb/schema.py`, `writer.py`, and `query.py` persist mentions/sentences plus BioRED `entity_relations` and `relation_provenance` | Add migration/version tracking and richer provenance metadata |
 | L4 Retrieval | `DONE` | `src/retrieval/sqlite_service.py` supports mention, sentence evidence, and relation modes (`relation_pmid`, `relation_entity_pair`) | Add pagination/ranking for larger result sets |

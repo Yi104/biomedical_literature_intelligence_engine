@@ -1,6 +1,6 @@
 # Biomedical Literature Intelligence System Design
 
-Last updated on: 2026-06-16 (America/Los_Angeles)
+Last updated on: 2026-06-17 (America/Los_Angeles)
 
 This is the current project-level system design. The older single-task
 BioBERT NER framing has been superseded by a layered biomedical evidence
@@ -37,6 +37,14 @@ Core constraints:
   of biomedical facts.
 - Structured JSON/table outputs are first-class artifacts.
 
+Resource-role clarification:
+
+- `BioRED` is the current gold benchmark and primary training/evaluation anchor
+  for gene/protein-disease relation evidence.
+- `PubTator` / `PubTator 3` are not yet integrated as a general runtime path;
+  they should be treated as future coverage/reference sources rather than as
+  current gold supervision for new-abstract inference.
+
 ## 2. Logical Architecture
 
 ```mermaid
@@ -45,8 +53,8 @@ flowchart TB
     A --> R["Task Router"]
 
     R --> B["BioRED primary path<br/>PubTator entities + gold/model relations"]
-    R --> C["BC5CDR baseline path<br/>PubMed + BioBERT NER"]
-    R --> D["JNLPBA auxiliary path<br/>PubMed + BioBERT NER"]
+    R --> C["BC5CDR baseline path<br/>PubMed + entity extraction"]
+    R --> D["JNLPBA auxiliary path<br/>PubMed + entity extraction"]
 
     B --> N["L2 Normalization"]
     C --> N
@@ -77,6 +85,15 @@ BioRED mode boundary:
 - `relation_mode=gold`: load curated relation rows from local BioRED PubTator.
 - `relation_mode=model`: use local BioRED PubTator entities, enumerate gene-disease candidate pairs, and classify them with the trained relation model.
 - New PubMed abstracts still need a BioRED-compatible entity extraction path before fully live gene-disease relation inference is possible.
+
+Runtime inference clarification:
+
+- The current BioRED-trained model should be understood as the primary baseline
+  relation model for the gene/protein-disease task.
+- New abstract inference is not currently defined as "compare every prediction
+  to PubTator."
+- A future PubTator integration path should act as a non-gold coverage or
+  reference layer, not as the current runtime gold standard.
 
 ## 4. Current Data Contracts
 

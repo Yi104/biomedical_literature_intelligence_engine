@@ -228,6 +228,7 @@ def _predict_with_transformer(
             return_tensors="pt",
         )
         outputs = model(**batch)
+        # confiddence is the label softmax P
         probs = torch.softmax(outputs.logits, dim=-1)
         confidences, pred_ids = torch.max(probs, dim=-1)
         for pred_id, confidence in zip(pred_ids.tolist(), confidences.tolist()):
