@@ -412,6 +412,24 @@ Behavioral effect:
 - No runtime behavior changed.
 - System design wording now better reflects the current extraction scope.
 
+### Project naming updated to Biomedical Literature Intelligence Engine
+
+What changed:
+- Updated primary document titles to use `Biomedical Literature Intelligence Engine`.
+- Updated the README shell example path to
+  `biomedical_literature_intelligence_engine`.
+
+Why:
+- The previous project naming overemphasized `BioBERT`, `biomarker`, and
+  `NER`, which no longer reflects the actual project scope.
+- The new name better matches the current architecture: literature retrieval,
+  extraction, evidence objects, provenance, retrieval, and downstream
+  assessment support.
+
+Behavioral effect:
+- No runtime behavior changed.
+- Repository-facing documentation now reflects the intended new project name.
+
 
 ## Recording rule
 

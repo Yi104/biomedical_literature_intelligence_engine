@@ -1,4 +1,4 @@
-# Biomedical Literature Intelligence System Design
+# Biomedical Literature Intelligence Engine Design
 
 Last updated on: 2026-06-17 (America/Los_Angeles)
 

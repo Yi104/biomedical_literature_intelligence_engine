@@ -1,4 +1,4 @@
-# PubMed Biomedical Evidence Extraction
+# Biomedical Literature Intelligence Engine
 
 Last updated on: 2026-06-16 (America/Los_Angeles)
 
@@ -79,7 +79,7 @@ For detailed explanation, see [LABEL_GUIDE.md](LABEL_GUIDE.md).
 From repo root:
 
 ```bash
-cd /path/to/biobert_biomarker_ner
+cd /path/to/biomedical_literature_intelligence_engine
 ```
 
 Create a clean environment (recommended):
